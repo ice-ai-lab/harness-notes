@@ -72,3 +72,44 @@
 | `TestingPermission` | `NODE_ENV=test` | 测试用权限工具 |
 | `WebBrowser` / `OverflowTest` / `SubscribePR` | 对应 feature 未入默认构建列表 | 浏览器 / 压测 / PR 订阅 |
 | `Snip` / `CtxInspect` / `ReviewArtifact` | feature 已禁用（HISTORY_SNIP / CONTEXT_COLLAPSE / REVIEW_ARTIFACT） | — |
+
+
+1. builtInTools 返回的内建Tool列表
+const builtInTools = getTools(permissionContext)
+
+Agent
+TaskOutput
+Bash
+Glob
+Grep
+ExitPlanMode
+Read
+Edit
+Write
+NotebookEdit
+artifact
+WebFetch
+TodoWrite
+WebSearch
+TaskStop
+AskUserQuestion
+Skill
+EnterPlanMode
+LocalMemoryRecall
+VaultHttpFetch
+EnterWorktree
+ExitWorktree
+SendMessage
+TeamCreate
+TeamDelete
+CronCreate
+CronDelete
+CronList
+DiscoverSkills
+SearchExtraTools
+ExecuteExtraTool
+
+2. commands.ts 的 loadAllCommands
+
+
+
