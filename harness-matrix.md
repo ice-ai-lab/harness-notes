@@ -31,6 +31,8 @@
 | 机制 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
 | **默认工具集** | 有·开 · 无条件 22（行数，合并格如 Team 对）+ 条件默认真 14 + 环境/flag 特定 7 · [🟦:218](details/02-tools.md#默认工具集) | 待填 | 待填 | 待填 |
+| **工具输出过长** | 有·开 · 工具内限制 + 单结果落盘 + 单消息预算 · [🟦:55](<details/02-tools.md#工具输出过长>) | 待填 | 待填 | 待填 |
+| **Read 重复读取去重** | 有·开 · 同路径+同区间+mtime 未变 → 回 stub（≈30 token）；full/partial compact 清账回填，microcompact 不清 · [🟦:538](<details/02-tools.md#read-重复读取去重>) | 待填 | 待填 | 待填 |
 
 ---
 
