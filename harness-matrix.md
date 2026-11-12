@@ -20,9 +20,9 @@
 
 | 机制 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
-| **自动压缩阈值** | 有·开 · `阈值=窗口−min(输出上限,20k)−缓冲` · 1M 窗口 942k（94.2%） · [🟦:202](details/01-context.md#自动压缩阈值) | 待填 | 待填 | 待填 |
-| **token 计量方式** | 有·开 · 精确值+增量按 `4字符=1token` 估 · [🟦:251](details/01-context.md#token-计量方式) | 待填 | 待填 | 待填 |
-| **预测性压缩** | 有·开 · 比常规阈值早 27k（1M 窗口 969k） · [🟦:883](details/01-context.md#预测性压缩) | 待填 | 待填 | 待填 |
+| **自动压缩阈值** | 原版：有·开 · `阈值=有效窗口−13k`（固定缓冲），1M 窗口 967k（96.7%）· [🟦:72](details/01-context.md#自动压缩阈值)<br>CCB：缓冲改三档（≥800k→50k，≥400k→30k，其他→13k），1M 窗口 942k（94.2%）· [🟦:202](details/01-context.md#自动压缩阈值) | 待填 | 待填 | 待填 |
+| **token 计量方式** | 有·开 · 最后一条 usage 精确值 + 其后消息按 `4字符=1token` 粗估（原版与 CCB 同构）· [🟦:226](details/01-context.md#token-计量方式) | 待填 | 待填 | 待填 |
+| **预测性压缩** | 原版：无 · 只在阈值处触发一次<br>CCB：有·开 · 发请求前按 `有效窗口−(输出预留+15k工具增长)` 预估，比常规阈值早 27k（1M 窗口 969k）· [🟦:883](details/01-context.md#预测性压缩) | 待填 | 待填 | 待填 |
 
 ---
 
@@ -33,6 +33,8 @@
 | **默认工具集** | 有·开 · 无条件 22（行数，合并格如 Team 对）+ 条件默认真 14 + 环境/flag 特定 7 · [🟦:218](details/02-tools.md#默认工具集) | 待填 | 待填 | 待填 |
 | **工具输出过长** | 有·开 · 工具内限制 + 单结果落盘 + 单消息预算 · [🟦:55](<details/02-tools.md#工具输出过长>) | 待填 | 待填 | 待填 |
 | **Read 重复读取去重** | 有·开 · 同路径+同区间+mtime 未变 → 回 stub（≈30 token）；full/partial compact 清账回填，microcompact 不清 · [🟦:538](<details/02-tools.md#read-重复读取去重>) | 待填 | 待填 | 待填 |
+| **工具延迟加载** | 原版：有·开（未设即 tst 全延迟）· defer_loading 藏 + ToolSearchTool 取 + API 展开，命中工具进 tools 数组 · [🟦:1158](<details/02-tools.md#工具延迟加载-tool-search>)<br>CCB：有·开 · SearchExtraTools+ExecuteExtraTool 纯客户端，schema 永不进 tools 数组 · [🟦:1188](<details/02-tools.md#ccb-演化与现行机制>) | 有·开 · 四档 exposure（默认 codemode 不声明）+ tool_search BM25 命中即注入下一轮声明 · [🟦:61](<details/02-tools.md#工具延迟加载-tool-search>) | 无 · schema 全量进 tools 数组；PTC 换形态兜底 · [🟦:126](<details/02-tools.md#工具延迟加载-tool-search>) | 待填 |
+| **Web 能力（搜索/抓取）** | 原版：有·开 · WebSearch=客户端外壳，`call()` 内再发一次完整 LLM 请求，服务端工具 `web_search_20250305` 注入该请求，由服务端在请求内完成搜索循环；`isEnabled()` 按 provider 门控（Bedrock 关，Vertex 限 Claude-4 系，firstParty/foundry 开）<br>WebFetch=axios 裸抓 → turndown 转 MD → Haiku 提炼，无 provider 门控<br>CCB：`isEnabled()` 恒 true；搜索默认改走 tavily HTTP（模式 B，不调模型），抓取默认走 tavily `/extract` 直出 MD（跳过 turndown 和 Haiku）· [🟦:209](details/02-tools.md#web-能力搜索与抓取) | 待填 | 待填 | 待填 |
 
 ---
 

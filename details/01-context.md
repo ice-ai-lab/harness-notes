@@ -10,12 +10,20 @@
 
 | 字段 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
-| **做法** | `阈值 = 有效窗口 − 缓冲`<br>`有效窗口 = 上下文窗口 − min(模型输出上限, 20,000)` | `tokens > 窗口 − reserveTokens(16,384)`（`shouldCompact()`，一行判定）<br>另设 `keepRecentTokens: 20,000` 控制压缩后保留量 | `totalTokens ≥ min(窗口 × 0.8, pressureBudget)`<br>`pressureBudget = 消息预算 − reservedCompletion − headroom` | — |
-| **值** | 缓冲分档：`有效窗口 ≥800k ? 50,000 : ≥400k ? 30,000 : 13,000`（见下算例） | `reserveTokens: 16,384`（默认，可配）；阈值 ≈ 窗口的 98.4%（固定 16k 留白，不随窗口分档） | `DEFAULT_THRESHOLD_RATIO = 0.8`（默认留 20% 余量）；`compactionRetries` 允许压后重试直至低于阈值 | — |
-| **位置** | `CCB: src/services/compact/autoCompact.ts:202` `getAutoCompactThreshold()`<br>窗口 `:75` · 缓冲 `:152` · 输出预留 `:34` | `pi: dist/core/compaction/compaction.js:161` `shouldCompact()`<br>默认值 `:74-78` `DEFAULT_COMPACTION_SETTINGS`<br>调用点 `dist/core/agent-session.js:279`（发前）`/ :1724`（响应后） | `dsh: @deepseek-ai/dsh-compaction-basic/lib/index.js:132`（阈值计算）`/ :949` `compactPressure()`<br>`:15` `DEFAULT_THRESHOLD_RATIO=0.8` | — |
-| **注** | 输出预留封顶 20k（输出上限 64k 时也只留 20k）；缓冲分档有断崖，有效窗口 800k 处跳增 20k，窗口刚过 808k 时阈值反降；窗口可用 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` 压低（只能调小） | PI 计量与 CC 同构：usage 精确 + 尾部 `chars/4` 估算（`estimateContextTokens`）；estimate 注释自述 "conservative (overestimates)"——宁可高估早压，不撞墙；溢出后走 overflow-with-retry（删失败回复→压→重试该轮一次） | DSH 留白最激进（20%），单层阈值即可吸收单轮膨胀，**无预测层**；压完仍超线按 `compactionRetries` 重试；provider 确认溢出走 `context-overflow` trigger 强制压（绕过阈值与保留策略）；用 `ctx.tokenMeter` 统一计量，非 4:1 粗估 | — |
+| **做法** | `阈值 = 有效窗口 − 缓冲`<br>`有效窗口 = 上下文窗口 − min(模型输出上限, 20,000)`<br>原版：缓冲固定 13,000<br>CCB：缓冲按有效窗口三档 | `tokens > 窗口 − reserveTokens(16,384)`（`shouldCompact()`，一行判定）<br>另设 `keepRecentTokens: 20,000` 控制压缩后保留量 | `totalTokens ≥ min(窗口 × 0.8, pressureBudget)`<br>`pressureBudget = 消息预算 − reservedCompletion − headroom` | — |
+| **值** | 原版：`AUTOCOMPACT_BUFFER_TOKENS = 13,000` 固定，不分档；1M 窗口阈值 967,000（96.7%）<br>CCB：三档 `有效窗口 ≥800k ? 50,000 : ≥400k ? 30,000 : 13,000`；1M 窗口阈值 942,000（94.2%）（见下算例） | `reserveTokens: 16,384`（默认，可配）；阈值 ≈ 窗口的 98.4%（固定 16k 留白，不随窗口分档） | `DEFAULT_THRESHOLD_RATIO = 0.8`（默认留 20% 余量）；`compactionRetries` 允许压后重试直至低于阈值 | — |
+| **位置** | 原版：`src/services/compact/autoCompact.ts:72` `getAutoCompactThreshold()` · 缓冲常量 `:62` · 窗口 `:33`<br>CCB：`src/services/compact/autoCompact.ts:202` `getAutoCompactThreshold()`<br>窗口 `:75` · 缓冲 `:152` · 输出预留 `:34` | `pi: dist/core/compaction/compaction.js:161` `shouldCompact()`<br>默认值 `:74-78` `DEFAULT_COMPACTION_SETTINGS`<br>调用点 `dist/core/agent-session.js:279`（发前）`/ :1724`（响应后） | `dsh: @deepseek-ai/dsh-compaction-basic/lib/index.js:132`（阈值计算）`/ :949` `compactPressure()`<br>`:15` `DEFAULT_THRESHOLD_RATIO=0.8` | — |
+| **注** | ①②共同：输出预留封顶 20k（输出上限 64k 时也只留 20k）；窗口可用 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` 压低（只能调小）<br>②CCB 特有：缓冲分档有断崖，有效窗口 800k 处跳增 20k，窗口刚过 808k 时阈值反降<br>③原版固定 13k 缓冲，无断崖；1M 窗口留白仅 33k（3.3%），比 CCB 的 58k 更激进 | PI 计量与 CC 同构：usage 精确 + 尾部 `chars/4` 估算（`estimateContextTokens`）；estimate 注释自述 "conservative (overestimates)"——宁可高估早压，不撞墙；溢出后走 overflow-with-retry（删失败回复→压→重试该轮一次） | DSH 留白最激进（20%），单层阈值即可吸收单轮膨胀，**无预测层**；压完仍超线按 `compactionRetries` 重试；provider 确认溢出走 `context-overflow` trigger 强制压（绕过阈值与保留策略）；用 `ctx.tokenMeter` 统一计量，非 4:1 粗估 | — |
 
-**算例**（`阈值 = 有效窗口 − 缓冲`，随窗口变化）：
+**原版算例**（固定缓冲 13k，输出预留取 20k）：
+
+| 窗口 | 有效窗口 | 缓冲 | 阈值 | 占比 |
+|---|---|---|---|---|
+| 200k | 180,000 | 13,000 | **167,000** | 83.5% |
+| 400k | 380,000 | 13,000 | **367,000** | 91.8% |
+| **1M** | 980,000 | 13,000 | **967,000** | 96.7% |
+
+**CCB 算例**（三档缓冲，输出预留取 8k）：
 
 | 窗口 | 有效窗口 | 缓冲 | 阈值 | 占比 |
 |---|---|---|---|---|
@@ -29,13 +37,13 @@
 
 **三方阈值哲学对比**（2026-11-11 源码核实）：
 
-| 留白策略 | ClaudeCode | PI | DSH |
-|---|---|---|---|
-| 1M 窗口实际留白 | 58k（缓冲 50k + 输出预留 8k）≈ 5.8% | 16,384 ≈ 1.6% | 200,000 ≈ 20% |
-| 单层够不够 | 不够 → 需第二道预测线 | 够（高估计量 + overflow 兜底） | 够（大留白 + retries + overflow trigger） |
-| 自动触发点数 | 2（常规 942k + 预测 969k） | 1 公式、2 检查时机（响应后 + 发前，同阈值） | 1（`pressure`），overflow 为独立事后 trigger |
+| 留白策略 | ClaudeCode 原版 | ClaudeCode (CCB) | PI | DSH |
+|---|---|---|---|---|
+| 1M 窗口实际留白 | 33k（缓冲 13k + 输出预留 20k）≈ 3.3% | 58k（缓冲 50k + 输出预留 8k）≈ 5.8% | 16,384 ≈ 1.6% | 200,000 ≈ 20% |
+| 单层够不够 | 够（单层阈值，无预测层） | 不够 → 需第二道预测线 | 够（高估计量 + overflow 兜底） | 够（大留白 + retries + overflow trigger） |
+| 自动触发点数 | 1（967k） | 2（常规 942k + 预测 969k） | 1 公式、2 检查时机（响应后 + 发前，同阈值） | 1（`pressure`），overflow 为独立事后 trigger |
 
-> CC 留白最小（5.8%）却分了两道线；DSH 留白最大（20%）只用一道线。留白越激进越依赖"预测/事后"补偿——这是架构选择联动，不是谁更先进。
+> 原版留白最激进（3.3%）却只用一个阈值，靠事后 413 兜底；CCB 反而加大留白并加了预测线。DSH 留白最大（20%）只用一道线。留白越激进越依赖"预测/事后"补偿——这是架构选择联动，不是谁更先进。
 
 ---
 
@@ -43,9 +51,9 @@
 
 | 字段 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
-| **做法** | 精确值 + 增量估算 | 同构：`calculateContextTokens(usage)` + 尾部消息 `chars/4` 粗估 | 统一 `ctx.tokenMeter` 服务测量（非 4:1 字符估算） | — |
+| **做法** | 精确值 + 增量估算（原版与 CCB 同构：尾扫最后一条 usage 作锚点，其后消息粗估） | 同构：`calculateContextTokens(usage)` + 尾部消息 `chars/4` 粗估 | 统一 `ctx.tokenMeter` 服务测量（非 4:1 字符估算） | — |
 | **值** | `input + cache_creation + cache_read + output`<br>其后消息按 `4 字符 = 1 token` 粗估 | `usageTokens + trailingTokens`；图片按 4,800 字符折算；estimate 注释自述偏保守（高估） | meter 口径由实现决定，压力预算 = 消息预算 − 完成预留 − headroom | — |
-| **位置** | `CCB: src/utils/tokens.ts:251` `tokenCountWithEstimation()`<br>求和 `:55` · 估算比例 `src/services/tokenEstimation.ts:215` | `pi: dist/core/compaction/compaction.js:104-158` `estimateContextTokens()` | `dsh: dsh-compaction-basic/lib/index.js:793` 起（依赖注入 `ctx.tokenMeter`） | — |
+| **位置** | 原版：`src/utils/tokens.ts:226` · CCB：`src/utils/tokens.ts:307` `tokenCountWithEstimation()`<br>求和 `:55` · 估算比例 `src/services/tokenEstimation.ts:215` | `pi: dist/core/compaction/compaction.js:104-158` `estimateContextTokens()` | `dsh: dsh-compaction-basic/lib/index.js:793` 起（依赖注入 `ctx.tokenMeter`） | — |
 | **注** | 4:1 对中文偏低，中文会话会**提前**触发限制；usage 四项中 `getCurrentUsage` 对全零占位有跳过防御，但 `tokenCountWithEstimation` 锚点判定不看全零——第三方 provider 的 message_start 占位 usage 会让计数瞬间塌到只剩 output | PI 的 token 计数与压缩判定解耦清晰：`estimateContextTokens` 返回 `{tokens, usageTokens, trailingTokens, lastUsageIndex}`，压缩后靠 `lastUsageIndex` 时间戳防"刚压完误触发" | DSH 把计量做成独立服务（tokenMeter），压缩层不自带估算——计量口径可在 composition 层替换 | — |
 
 ---
