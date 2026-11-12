@@ -121,7 +121,7 @@ ExecuteExtraTool
 |---|---|---|---|---|
 | **做法** | 工具先自行限制读取范围或输出 → 正常返回的 `tool_result` 经通用大小处理 → 发模型请求前检查单消息聚合预算 | 待填 | 待填 | 待填 |
 | **值** | Read 文件字节限制：256 KiB（仅无 `limit`）<br>Read 内容预算：25,000 tokens<br>Read 快速拒绝：内容 >100,000 UTF-8 字节<br>尝试计数 API：粗估 >6,250 tokens<br>通用单结果阈值：`min(tool.maxResultSizeChars, 50_000)`<br>单消息聚合预算：200,000 字符<br>预览上限：2,000 个 JS 字符串长度单位 | 待填 | 待填 | 待填 |
-| **位置** | [Read 入口:1028](<../../claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts#L1028-L1039>)<br>[token 校验:754](<../../claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts#L754-L780>)<br>[通用阈值:55](<../../claude-code-best/src/utils/toolResultStorage.ts#L55-L78>)<br>[通用落盘:272](<../../claude-code-best/src/utils/toolResultStorage.ts#L272-L333>)<br>[聚合预算:769](<../../claude-code-best/src/utils/toolResultStorage.ts#L769-L868>) | 待填 | 待填 | 待填 |
+| **位置** | Read 入口:1028 `claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts:1028–1039`<br>token 校验:754 `claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts:754–780`<br>通用阈值:55 `claude-code-best/src/utils/toolResultStorage.ts:55–78`<br>通用落盘:272 `claude-code-best/src/utils/toolResultStorage.ts:272–333`<br>聚合预算:769 `claude-code-best/src/utils/toolResultStorage.ts:769–868` | 待填 | 待填 | 待填 |
 | **注** | 字节、字符和 token 不是同一单位；工具自身超限可以报错，通用层过大通常存盘而非报错；落盘失败会保留原结果，因此通用预算不是严格硬上限 | 待填 | 待填 | 待填 |
 
 ### Read 工具
@@ -146,9 +146,9 @@ if (effectiveCount > effectiveMaxTokens) {
 }
 ```
 
-- `content.length` 是 UTF-16 code unit 数，不是 UTF-8 字节数；粗估函数的参数虽叫 `bytesPerToken`，实际仍按字符串长度计算。[粗估实现:215–254](<../../claude-code-best/src/services/tokenEstimation.ts#L215-L254>)
-- 默认预算可被调用上下文、`CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS` 或 GrowthBook 覆盖；100,000 和 6,250 会随有效预算变化。[默认配置](<../../claude-code-best/packages/builtin-tools/src/tools/FileReadTool/limits.ts#L18-L91>)
-- 普通 Read 没有实际的默认 2,000 行上限；提示词与实现有差异。`@文件` 附件层在超限后可重试前 2,000 行，compact 模式则只给文件引用，不是普通 Read 自动重试。[附件分支:3234–3299](<../../claude-code-best/src/utils/attachments.ts#L3234-L3299>)
+- `content.length` 是 UTF-16 code unit 数，不是 UTF-8 字节数；粗估函数的参数虽叫 `bytesPerToken`，实际仍按字符串长度计算。粗估实现:215–254 `claude-code-best/src/services/tokenEstimation.ts:215–254`
+- 默认预算可被调用上下文、`CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS` 或 GrowthBook 覆盖；100,000 和 6,250 会随有效预算变化。默认配置 `claude-code-best/packages/builtin-tools/src/tools/FileReadTool/limits.ts:18–91`
+- 普通 Read 没有实际的默认 2,000 行上限；提示词与实现有差异。`@文件` 附件层在超限后可重试前 2,000 行，compact 模式则只给文件引用，不是普通 Read 自动重试。附件分支:3234–3299 `claude-code-best/src/utils/attachments.ts:3234–3299`
 
 ### 通用结果层：何时落盘，何时报错
 
@@ -159,7 +159,7 @@ if (effectiveCount > effectiveMaxTokens) {
 5. **报错规则**：通用层不会仅因输出过大而报错；正常落盘失败时保留原结果，不自动截断、不改为工具失败。后续模型请求仍可能因上下文过大失败。工具直接抛出的错误由执行框架包装成错误 `tool_result`，不经过这一正常成功结果分支。
 6. **聚合条件**：同一 API 消息中可处理的工具结果合计 >200,000 字符，会优先把最大的、尚未固定处理决策的结果落盘替换成预览。之前的处理决策会冻结以保持缓存前缀稳定；`Infinity` 工具退出该预算，保存失败也保留原结果，所以不保证严格压到上限。
 
-入口：[toolExecution.ts:1478–1490](<../../claude-code-best/src/services/tools/toolExecution.ts#L1478-L1490>)；聚合调用：[query.ts:593–613](<../../claude-code-best/src/query.ts#L593-L613>)。`MAX_TOOL_RESULT_TOKENS = 100_000` 及其派生常量不能理解为所有工具都会执行的精确 token 硬拒绝；正常单结果路径主要使用字符落盘阈值。[通用常量](<../../claude-code-best/src/constants/toolLimits.ts#L5-L49>)
+入口：toolExecution.ts:1478–1490 `claude-code-best/src/services/tools/toolExecution.ts:1478–1490`；聚合调用：query.ts:593–613 `claude-code-best/src/query.ts:593–613`。`MAX_TOOL_RESULT_TOKENS = 100_000` 及其派生常量不能理解为所有工具都会执行的精确 token 硬拒绝；正常单结果路径主要使用字符落盘阈值。通用常量 `claude-code-best/src/constants/toolLimits.ts:5–49`
 
 ### 约 2,000 字符预览如何生成
 
@@ -174,21 +174,21 @@ const cutPoint = lastNewline > 1000 ? lastNewline : 2000
 const preview = content.slice(0, cutPoint)
 ```
 
-`PREVIEW_SIZE_BYTES` 虽带 `BYTES`，实际按 JS 字符串长度截取，不是 UTF-8 字节或 token；2,000 只限制预览正文，不包括路径、提示、标签等包装文字。[generatePreview():339–355](<../../claude-code-best/src/utils/toolResultStorage.ts#L339-L355>)
+`PREVIEW_SIZE_BYTES` 虽带 `BYTES`，实际按 JS 字符串长度截取，不是 UTF-8 字节或 token；2,000 只限制预览正文，不包括路径、提示、标签等包装文字。generatePreview():339–355 `claude-code-best/src/utils/toolResultStorage.ts:339–355`
 
 ### Bash 读文件与其他工具
 
-- **Bash / PowerShell**：不调用 Read 的文件大小/token 校验，改走 Shell 输出控制。普通 Bash 的 stdout/stderr 直接写任务输出文件，结束后默认只读回前 30,000 字节；成功的大输出保留路径，模型收到约 2,000 字符预览。`BASH_MAX_OUTPUT_LENGTH` 可调，配置上限 150,000；成功返回时的大输出持久化最多保留 64 MiB，超过会截掉。这个 64 MiB 不是运行期间的磁盘写入硬上限；失败和后台任务另有路径。[前缀读取](<../../claude-code-best/src/utils/task/TaskOutput.ts#L297-L311>) · [配置](<../../claude-code-best/src/utils/shell/outputLimits.ts#L1-L14>) · [64 MiB 处理](<../../claude-code-best/packages/builtin-tools/src/tools/BashTool/BashTool.tsx#L870-L895>)
-- **Grep**：搜索正文，默认最多返回 250 行/条，支持 `offset`；`head_limit: 0` 可取消条数限制，通用大小预算仍生效。匹配行自身很长时，条数限制也不能控制字节数。[实现](<../../claude-code-best/packages/builtin-tools/src/tools/GrepTool/GrepTool.ts#L101-L124>)
-- **Glob**：按文件名/路径模式找文件，默认最多 100 个，超出提示缩小范围，不检查正文。[实现](<../../claude-code-best/packages/builtin-tools/src/tools/GlobTool/GlobTool.ts#L151-L168>)
-- **WebFetch**：进入副模型处理的路径时，输入先裁到 100,000 字符，再按 prompt 提取/总结；被裁掉的部分副模型也没看过。[实现](<../../claude-code-best/packages/builtin-tools/src/tools/WebFetchTool/utils.ts#L543-L573>)
-- **MCP**：另有默认 25,000-token 计数预算；检测超限后通常存文本，含图或禁用大输出落盘时走裁剪。专用层的计数失败可放行；其落盘失败会返回错误说明，与通用层“保留原结果”不同。[计数](<../../claude-code-best/src/utils/mcpValidation.ts#L151-L177>) · [超限分支](<../../claude-code-best/src/services/mcp/client.ts#L2771-L2827>)
+- **Bash / PowerShell**：不调用 Read 的文件大小/token 校验，改走 Shell 输出控制。普通 Bash 的 stdout/stderr 直接写任务输出文件，结束后默认只读回前 30,000 字节；成功的大输出保留路径，模型收到约 2,000 字符预览。`BASH_MAX_OUTPUT_LENGTH` 可调，配置上限 150,000；成功返回时的大输出持久化最多保留 64 MiB，超过会截掉。这个 64 MiB 不是运行期间的磁盘写入硬上限；失败和后台任务另有路径。前缀读取 `claude-code-best/src/utils/task/TaskOutput.ts:297–311` · 配置 `claude-code-best/src/utils/shell/outputLimits.ts:1–14` · 64 MiB 处理 `claude-code-best/packages/builtin-tools/src/tools/BashTool/BashTool.tsx:870–895`
+- **Grep**：搜索正文，默认最多返回 250 行/条，支持 `offset`；`head_limit: 0` 可取消条数限制，通用大小预算仍生效。匹配行自身很长时，条数限制也不能控制字节数。实现 `claude-code-best/packages/builtin-tools/src/tools/GrepTool/GrepTool.ts:101–124`
+- **Glob**：按文件名/路径模式找文件，默认最多 100 个，超出提示缩小范围，不检查正文。实现 `claude-code-best/packages/builtin-tools/src/tools/GlobTool/GlobTool.ts:151–168`
+- **WebFetch**：进入副模型处理的路径时，输入先裁到 100,000 字符，再按 prompt 提取/总结；被裁掉的部分副模型也没看过。实现 `claude-code-best/packages/builtin-tools/src/tools/WebFetchTool/utils.ts:543–573`
+- **MCP**：另有默认 25,000-token 计数预算；检测超限后通常存文本，含图或禁用大输出落盘时走裁剪。专用层的计数失败可放行；其落盘失败会返回错误说明，与通用层“保留原结果”不同。计数 `claude-code-best/src/utils/mcpValidation.ts:151–177` · 超限分支 `claude-code-best/src/services/mcp/client.ts:2771–2827`
 
 **区分三种行为**：按 `limit` 选范围 ≠ 超限报错 ≠ 存盘后只展示预览。脚本读过全文、输出已存盘，也不等于模型看过全文；Shell 输出保护不保证脚本自身的 CPU、内存和磁盘消耗安全。
 
 ### 计数 API 与本机诊断记录
 
-- **直连 Anthropic**：`countTokensWithAPI()` 将所选正文包装成一条 `user` 消息、`tools: []`，按主循环模型调用 `POST /v1/messages/count_tokens`，使用返回的 `input_tokens`。不生成回答，不包含 Read 随后添加的行号，也不是整个会话的计数。官方将服务端返回值定义为估计值。[调用链:131–210](<../../claude-code-best/src/services/tokenEstimation.ts#L131-L210>) · [官方说明](<https://platform.claude.com/docs/en/build-with-claude/token-counting>)
+- **直连 Anthropic**：`countTokensWithAPI()` 将所选正文包装成一条 `user` 消息、`tools: []`，按主循环模型调用 `POST /v1/messages/count_tokens`，使用返回的 `input_tokens`。不生成回答，不包含 Read 随后添加的行号，也不是整个会话的计数。官方将服务端返回值定义为估计值。调用链:131–210 `claude-code-best/src/services/tokenEstimation.ts:131–210` · [官方说明](<https://platform.claude.com/docs/en/build-with-claude/token-counting>)
 - **provider 差异**：本仓库 Gemini 分支直接本地估算；Bedrock 使用专用计数接口；OpenAI 兼容模式没有对应计数分支，仍创建 Anthropic client，不使用 `OPENAI_BASE_URL/OPENAI_API_KEY`。
 - **2026-11-11 本机配置快照**：正常生成使用 OpenAI 兼容模式，目标 DeepSeek；`ANTHROPIC_BASE_URL` 指向 `http://127.0.0.1:15721`，该端口由 `tt-switch` 监听。对普通和 `?beta=true` 的计数路径发送无敏感测试文本、未携带真实密钥，均返回 HTTP 404，没有取得计数。
 - **实际影响**：按该快照，Read 进入计数分支后无法从已测路径得到计数，失败后回退字符长度粗估；不代表 Read 必然失败。认证不足也可能在 HTTP 请求前就失败。测试未追踪已有 Claude 进程的启动覆盖，不能把这次 404 推广为所有 TT Switch/DeepSeek 配置均不支持计数。
@@ -216,7 +216,7 @@ curl --silent --show-error --noproxy '*' --max-time 10 \
 |---|---|---|---|---|
 | **做法** | 会话级 `readFileState`（FileStateCache）记录每次真实读取的 `{content, mtime, offset, limit}`；下一次 Read 命中「同路径 + 同区间 + mtime 未变」时不再返回内容，改回一句固定 stub，让模型引用上文里已有的那次 `tool_result` | 待填 | 待填 | 待填 |
 | **值** | 四道闸门（全部成立才 stub）：① 记录存在；② 非自动注入（`!isPartialView`）且 `offset !== undefined`（来自真实 Read）；③ `offset`/`limit` 与上次完全相同；④ 重新 stat，`Math.floor(mtimeMs)` 逐毫秒相等<br>stub 文案：`File unchanged since last read. …refer to that instead of re-reading.`（约 30 token）<br>命中输出类型：`{type: 'file_unchanged'}`，UI 显示 `Unchanged since last read`<br>记录容量：LRU 100 条 / 25MB（按 content UTF-8 字节计）<br>动机数据（源码注释）：约 18% 的 Read 是同文件碰撞，最高占 fleet cache_creation 2.64% | 待填 | 待填 | 待填 |
-| **位置** | [去重判定:538](<../../claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts#L538-L588>)<br>[stub 文案](<../../claude-code-best/packages/builtin-tools/src/tools/FileReadTool/prompt.ts#L7-L8>)<br>[file_unchanged 映射:701](<../../claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts#L701-L706>)<br>[FileStateCache](<../../claude-code-best/src/utils/fileStateCache.ts#L30-L59>)<br>[Read 写记录:1041](<../../claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts#L1041-L1046>)<br>[killswitch:551](<../../claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts#L551-L554>) | 待填 | 待填 | 待填 |
+| **位置** | 去重判定:538 `claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts:538–588`<br>stub 文案 `claude-code-best/packages/builtin-tools/src/tools/FileReadTool/prompt.ts:7–8`<br>file_unchanged 映射:701 `claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts:701–706`<br>FileStateCache `claude-code-best/src/utils/fileStateCache.ts:30–59`<br>Read 写记录:1041 `claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts:1041–1046`<br>killswitch:551 `claude-code-best/packages/builtin-tools/src/tools/FileReadTool/FileReadTool.ts:551–554` | 待填 | 待填 | 待填 |
 | **注** | ① 纯客户端机制，GrowthBook killswitch `tengu_read_dedup_killswitch`（默认 false=启用），Bedrock/Vertex 同样生效；命中上报 `tengu_file_read_dedup`。② 判据是 mtime 不是内容哈希：外部 `touch -d` 回拨 mtime 会误判"未变"。③ 图片/PDF 不写记录，永不去重。④ 命中省的是"第二份全文"，不缩短已有上下文；stub 的有效性依赖旧 `tool_result` 还在历史里（见下方"失效时机"）。⑤ 换区间读会覆写记录，只有"最近一次区间"可去重；软链接是不同键。⑥ Magic Docs / SessionMemory 需要真实内容，做法是先 `readFileState.delete(path)` 再调 Read 绕过 | 待填 | 待填 | 待填 |
 
 ### 为什么需要这个机制
@@ -279,13 +279,13 @@ readFileState.set(fullFilePath, { content, timestamp: Math.floor(mtimeMs), offse
 
 ## 工具延迟加载（Tool Search）
 
-> 核对日期：2026-11-12（第二版，经官方 npm 包 sourcemap 还原源码逐行验证）。原版依据 [claude-code-sourcemap](../../claude-code-sourcemap/README.md)（官方 `@anthropic-ai/claude-code` v2.1.88 的 `cli.js.map` sourcesContent 还原）；CCB 行为基于本机复原源码（v2.1.888）+ git 历史（`7be08f53` → `8c157f07`）；DeepSeek 兼容性依据 [DeepSeek 官方文档](https://api-docs.deepseek.com/guides/anthropic_api)。
+> 核对日期：2026-11-12（第二版，经官方 npm 包 sourcemap 还原源码逐行验证）。原版依据 claude-code-sourcemap `claude-code-sourcemap/README.md`（官方 `@anthropic-ai/claude-code` v2.1.88 的 `cli.js.map` sourcesContent 还原）；CCB 行为基于本机复原源码（v2.1.888）+ git 历史（`7be08f53` → `8c157f07`）；DeepSeek 兼容性依据 [DeepSeek 官方文档](https://api-docs.deepseek.com/guides/anthropic_api)。
 
 | 字段 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
 | **做法** | 原版：`defer_loading` + `tool_reference`（API 服务端机制，命中工具**会**进 tools 数组）；CCB 替换为自研 SearchExtraTools + ExecuteExtraTool（纯客户端，schema **永不**进 tools 数组） | 四档 exposure（默认 `codemode` 不声明）+ `tool_search`（BM25）命中后 `setActiveTools` 把 schema 注入下一轮声明 | 全量注册、schema 无差别进 tools 数组，无延迟机制；规模靠 PTC（`run_code` + SDK 进 system prompt）换形态 | 待填 |
 | **值** | 原版：MCP 默认延迟、`alwaysLoad` 豁免、`shouldDefer` 显式标记；三模式 tst（未设即默认）/ tst-auto（阈值=上下文×10%）/ standard；CCB：CORE_TOOLS 白名单 ~29 个，搜索=关键词×0.4+TF-IDF×0.6 | exposure ∈ {direct, codemode(默认), deferred, hidden}，`toolExposure` 按名/通配符覆盖；BM25 name×3/namespace×0.5；`mcp_servers` 段预算 4096 字符；tool_search 默认 limit 8 | — | — |
-| **位置** | 原版：[ToolSearchTool](<../../claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts>) · [isDeferredTool 散特判](<../../claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/prompt.ts#L62>) · [discovered 进 tools 数组](<../../claude-code-sourcemap/restored-src/src/services/api/claude.ts#L1158>) · [tool_reference 产出](<../../claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts#L461>) · [关键词打分器](<../../claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts#L186>)<br>CCB：[CORE_TOOLS](<../../claude-code-best/src/constants/tools.ts#L137>) · [无条件排除](<../../claude-code-best/src/services/api/claude.ts#L1188>) · [TF-IDF 索引](<../../claude-code-best/src/services/searchExtraTools/toolIndex.ts#L80>) · [发现门](<../../claude-code-best/packages/builtin-tools/src/tools/ExecuteTool/ExecuteTool.ts#L88>) | [exposure](<../../pi/packages/coding-agent/src/core/mcp-servers.ts#L61>) · [tool_search](<../../pi/packages/coding-agent/src/extensions/tool-search/tool.ts#L300>) | [syncTools](<../../deepseek-harness/packages/mcp/mcp-client/src/tools.ts#L126>) · [PTC](<../../deepseek-harness/packages/core/tool-executor-ptc/src/index.ts#L45>) | — |
+| **位置** | 原版：ToolSearchTool `claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts` · isDeferredTool 散特判 `claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/prompt.ts:62` · discovered 进 tools 数组 `claude-code-sourcemap/restored-src/src/services/api/claude.ts:1158` · tool_reference 产出 `claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts:461` · 关键词打分器 `claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts:186`<br>CCB：CORE_TOOLS `claude-code-best/src/constants/tools.ts:137` · 无条件排除 `claude-code-best/src/services/api/claude.ts:1188` · TF-IDF 索引 `claude-code-best/src/services/searchExtraTools/toolIndex.ts:80` · 发现门 `claude-code-best/packages/builtin-tools/src/tools/ExecuteTool/ExecuteTool.ts:88` | exposure `pi/packages/coding-agent/src/core/mcp-servers.ts:61` · tool_search `pi/packages/coding-agent/src/extensions/tool-search/tool.ts:300` | syncTools `deepseek-harness/packages/mcp/mcp-client/src/tools.ts:126` · PTC `deepseek-harness/packages/core/tool-executor-ptc/src/index.ts:45` | — |
 | **注** | 原版无 ExecuteExtraTool（tools/ 40 个目录，全仓库无 CallTool 代理）；CCB 里 defer_loading/tool_reference 是化石（`api.ts` deferLoading 选项、`betas.ts` beta header 零调用） | 命中后 schema 真进下一轮声明；激活记录进 transcript，resume/fork 保留 | PTC 下模型只见 `run_code`，其余以 SDK 文本进 system prompt——省往返与中间结果，不省 schema | — |
 
 ### 自配模型（DeepSeek 等）会开启延迟加载吗：不会，拦在注册闸
@@ -399,13 +399,13 @@ readFileState.set(fullFilePath, { content, timestamp: Math.floor(mtimeMs), offse
 
 ## Web 能力（搜索与抓取）
 
-> 核对日期：2026-11-12。依据 [claude-code-sourcemap](../../claude-code-sourcemap/README.md)（官方 `@anthropic-ai/claude-code` v2.1.88 sourcemap 还原源码），CCB 分叉单列。
+> 核对日期：2026-11-12。依据 claude-code-sourcemap `claude-code-sourcemap/README.md`（官方 `@anthropic-ai/claude-code` v2.1.88 sourcemap 还原源码），CCB 分叉单列。
 
 | 字段 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
 | **做法** | 两者都默认开启：`getAllBaseTools()` 静态列入数组（注册层不门控），门在 `getTools()` 的 `isEnabled()`。<br>**WebSearch** = 客户端工具外壳，`call()` 内部再发一次完整 LLM 请求，把服务端工具 `web_search_20250305` 注入该请求，服务端在**这次请求内部**跑搜索循环，客户端消费完整个流后压成纯文本回灌。<br>**WebFetch** = axios 裸抓 HTTP → turndown 转 Markdown → Haiku 按 prompt 二次提炼，只回传答案 | — | — | — |
 | **值** | WebSearch 内层：`tools: []`、`extraToolSchemas: [web_search_20250305]`、`max_uses: 8`、`systemPrompt` 单行固定、`querySource: 'web_search_tool'`<br>WebFetch 入参：`url` + `prompt`，两者均必填<br>WebFetch：URL ≤2000 字符、HTTP 60s / 10 MiB / 重定向 10 跳、Markdown 100k 字符上限、缓存 15min·50MiB、预批准域名 89 条 | — | — | — |
-| **位置** | [注册](<../../claude-code-sourcemap/restored-src/src/tools.ts#L207-L209>) · [isEnabled 过滤](<../../claude-code-sourcemap/restored-src/src/tools.ts#L325>) · [WebSearch isEnabled](<../../claude-code-sourcemap/restored-src/src/tools/WebSearchTool/WebSearchTool.ts#L168-L193>) · [WebSearch 嵌套请求](<../../claude-code-sourcemap/restored-src/src/tools/WebSearchTool/WebSearchTool.ts#L254-L291>) · [extraToolSchemas 合并](<../../claude-code-sourcemap/restored-src/src/services/api/claude.ts#L1385-L1396>) · [WebFetch 模型分叉](<../../claude-code-sourcemap/restored-src/src/tools/WebFetchTool/WebFetchTool.ts#L259-L278>) · [axios 抓取](<../../claude-code-sourcemap/restored-src/src/tools/WebFetchTool/utils.ts#L262-L329>) · [Haiku 提炼](<../../claude-code-sourcemap/restored-src/src/tools/WebFetchTool/utils.ts#L484-L529>) | — | — | — |
+| **位置** | 注册 `claude-code-sourcemap/restored-src/src/tools.ts:207–209` · isEnabled 过滤 `claude-code-sourcemap/restored-src/src/tools.ts:325` · WebSearch isEnabled `claude-code-sourcemap/restored-src/src/tools/WebSearchTool/WebSearchTool.ts:168–193` · WebSearch 嵌套请求 `claude-code-sourcemap/restored-src/src/tools/WebSearchTool/WebSearchTool.ts:254–291` · extraToolSchemas 合并 `claude-code-sourcemap/restored-src/src/services/api/claude.ts:1385–1396` · WebFetch 模型分叉 `claude-code-sourcemap/restored-src/src/tools/WebFetchTool/WebFetchTool.ts:259–278` · axios 抓取 `claude-code-sourcemap/restored-src/src/tools/WebFetchTool/utils.ts:262–329` · Haiku 提炼 `claude-code-sourcemap/restored-src/src/tools/WebFetchTool/utils.ts:484–529` | — | — | — |
 | **注** | ① 两者都 `shouldDefer: true`，ToolSearch 默认模式下首次使用要先 ToolSearch 一轮。<br>② WebSearch 的 `isEnabled` 只看 provider（firstParty/foundry 开、vertex 看模型名、bedrock 关），**不认模型是不是 Claude**；用 `ANTHROPIC_BASE_URL` 接第三方代理仍判 firstParty → 工具启用但服务端能力不存在，静默失败。<br>③ WebFetch 的原始 HTML 只在中间存在，`tool_result` 里没有，`result` 是 Haiku 的答案。 | — | — | — |
 
 ### 模式分辨：谁执行 + 是否又开模型
