@@ -6,7 +6,7 @@
 >
 > **示例基准**：除特别说明，所有算例统一 **ContextWindow = 1M**、输出预留取默认 8k。
 >
-> **证据标注**：✅ 官方文档 · 🟦 源码锚点 · ⚠️ 待验证 · `—` 无此机制
+> **证据标注**：✅ 官方文档 · 🟦 源码锚点 · 🟦实测 运行实测（真实请求体/二进制考证）· ⚠️ 待验证 · `—` 无此机制
 
 ## 分层口径
 
@@ -15,9 +15,9 @@
 | 层 | 详情表 | 这一层问什么 | 进度 |
 |---|---|---|---|
 | 00 循环与恢复 | `details/00-loop.md` | 谁驱动回合、失败后怎么继续 | ⬜ 待建 |
-| 01 上下文与压缩 | [01-context](details/01-context.md) | 窗口不够时按什么顺序腾空间 | 🟡 3/7 已填 |
+| 01 上下文与压缩 | [01-context](details/01-context.md) | 窗口不够时按什么顺序腾空间 | 🟡 4/7 已填 |
 | 02 提示词与注入 | `details/02-prompt.md` | 常驻内容怎么拼、按什么边界缓存 | ⬜ 待建 |
-| 03 工具与编辑 | [02-tools](details/02-tools.md) | 工具怎么注册、跑、和截断 | 🟡 7/10 已填 |
+| 03 工具与编辑 | [02-tools](details/02-tools.md) | 工具怎么注册、跑、和截断 | 🟡 5/10 已填 |
 | 04 安全权限 | `details/04-safety.md` | 危险动作在哪一层被拦 | ⬜ 待建 |
 | 05 记忆 | `details/05-memory.md` | 跨会话事实怎么存、召回、保鲜 | ⬜ 待建 |
 | 06 技能与扩展 | `details/06-skills.md` | 能力怎么按需装载、怎么拦钩子 | ⬜ 待建 |
@@ -53,7 +53,7 @@
 | **自动压缩阈值** | 原版：有·开 · `阈值=有效窗口−13k` 固定缓冲，1M 窗口 967k（96.7%）· [🟦:72](details/01-context.md#自动压缩阈值)<br>CCB：缓冲改三档，1M 窗口 942k（94.2%）· [🟦:202](details/01-context.md#自动压缩阈值) | 待填 | 待填 | 待填 |
 | **token 计量方式** | 有·开 · 最后一条 usage 精确值 + 其后消息按 `4字符=1token` 粗估（原版与 CCB 同构）· [🟦:226](details/01-context.md#token-计量方式) | 待填 | 待填 | 待填 |
 | **预测性压缩** | 原版：无 · 只在阈值处触发一次<br>CCB：有·开 · 发请求前按 `有效窗口−(输出预留+15k)` 预估，1M 窗口 969k · [🟦:883](details/01-context.md#预测性压缩) | 待填 | 待填 | 待填 |
-| **压缩流水线分级** | 待填 | 待填 | 待填 | 待填 |
+| **压缩流水线分级** | 原版 ant 构建：有·开 · 四级顺序 Snip→Micro→Collapse→Auto，前三级外部构建被 DCE 剔除，外部仅 Auto 一级 · [🟦](<details/01-context.md#压缩流水线分级四级>) | 待填 | 待填 | 待填 |
 | **工具结果落盘** | 待填 | 待填 | 待填 | 待填 |
 | **缓存热冷双路径** | 待填 | 待填 | 待填 | 待填 |
 | **反应式压缩兜底** | 待填 | 待填 | 待填 | 待填 |
@@ -78,10 +78,10 @@
 
 | 机制 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
-| **默认工具集** | 有·开 · 无条件 22（行数，合并格如 Team 对）+ 条件默认真 14 + 环境/flag 特定 7 · [🟦:218](details/02-tools.md#默认工具集) | 待填 | 待填 | 待填 |
+| **默认工具集** | 实测 2.1.325：eager 13 + deferred 13（名单公告，schema 客户端自持），无 Grep/Glob/TodoWrite/Task* · [🟦实测](<details/02-tools.md#实测清单官方-v21325-运行实测>)<br>CCB 参照：无条件 22 + 条件默认真 14 + 环境/flag 特定 7 · [🟦:218](details/02-tools.md#注册机制参照ccb-复原源码口径-v21888-源码锚点非官方实测) | 待填 | 待填 | 待填 |
 | **工具输出过长** | 有·开 · 工具内限制 + 单结果落盘 + 单消息预算 · [🟦:55](<details/02-tools.md#工具输出过长>) | 待填 | 待填 | 待填 |
 | **Read 重复读取去重** | 有·开 · 同路径+同区间+mtime 未变 → 回 stub（≈30 token）· [🟦:538](<details/02-tools.md#read-重复读取去重>) | 待填 | 待填 | 待填 |
-| **工具延迟加载** | 原版：有·开 · defer_loading 藏 + ToolSearchTool 取 + API 展开，命中工具进 tools 数组 · [🟦:1158](<details/02-tools.md#工具延迟加载-tool-search>)<br>CCB：有·开 · 纯客户端，schema 永不进 tools 数组 · [🟦:1188](<details/02-tools.md#ccb-演化与现行机制>) | 有·开 · 四档 exposure（默认不声明）+ tool_search BM25 命中即注入下一轮 · [🟦:61](<details/02-tools.md#工具延迟加载-tool-search>) | 无 · schema 全量进 tools 数组；PTC 换形态兜底 · [🟦:126](<details/02-tools.md#工具延迟加载-tool-search>) | 待填 |
+| **工具延迟加载** | 原版 2.1.325 实测：有·开 · 客户端自持 schema，ToolSearch 回填后直接调用；端点拒 beta 则自动降级全量内联 · [🟦实测](<details/02-tools.md#实测报文结构官方-v21325-运行实测-2026-11-16>)<br>原版 2.1.88（历史）：defer_loading 藏 + ToolSearchTool 取 + API 展开 · [🟦:1158](<details/02-tools.md#历史机制存档2188-服务端展开已换代留作参照>)<br>CCB：两步代理（SearchExtraTools + ExecuteExtraTool），schema 永不进 tools 数组 · [🟦:1188](<details/02-tools.md#ccb-演化与现行机制>) | 有·开 · 四档 exposure（默认不声明）+ tool_search BM25 命中即注入下一轮 · [🟦](<details/02-tools.md#工具延迟加载tool-search>) | 无 · schema 全量进 tools 数组；PTC 换形态兜底 · [🟦](<details/02-tools.md#工具延迟加载tool-search>) | 待填 |
 | **Web 能力（搜索/抓取）** | 原版：有·开 · WebSearch=客户端外壳内再发一次完整请求，服务端跑搜索循环，按 provider 门控；WebFetch=裸抓 → 转 MD → 小模型提炼<br>CCB：provider 门控删除，搜索改 tavily HTTP、抓取直出 MD · [🟦:209](details/02-tools.md#web-能力搜索与抓取) | 待填 | 待填 | 待填 |
 | **工具池组装** | 待填 | 待填 | 待填 | 待填 |
 | **并发门控** | 待填 | 待填 | 待填 | 待填 |

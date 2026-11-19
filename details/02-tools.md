@@ -6,14 +6,44 @@
 
 ## 默认工具集
 
+> 核对日期：2026-11-16。主证据：官方 **v2.1.325** external CLI 本机抓包（🟦 运行实测，`~/tmp/20261116/cc_body-2.1.325.json`）。注册管线细节保留 CCB 复原源码（v2.1.888）作参照——**两者口径不同，CCB 清单不能当作官方清单引用**。
+
 | 字段 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
-| **做法** | `getAllBaseTools()` 列出全部可注册工具 → `getTools()` 过滤（deny 规则 → REPL 模式隐藏 → `isEnabled()`）→ `assembleToolPool()` 合并 MCP 工具（内置优先去重、内置排连续前缀保 prompt cache）→ 每回合 `computeTools()` 从 store 现算 | — | — | — |
-| **值** | 无条件 ~25 个 + 条件包含 ~16 个（默认构建下多数为真）+ 环境/flag 特定 ~14 个，见下方清单 | — | — | — |
-| **位置** | `CCB: src/tools.ts:218` `getAllBaseTools()` · 过滤 `src/tools.ts:304` `getTools()` · 合并 MCP `src/tools.ts:378` `assembleToolPool()` · 特殊工具剔除 `src/tools.ts:334` | — | — | — |
-| **注** | ① `ListMcpResources`/`ReadMcpResources` 在 `getAllBaseTools` 里但被 `getTools` 的 specialTools 剔除，由 MCP 连接状态动态注入。② SIMPLE 模式（`CLAUDE_CODE_SIMPLE=1`）只剩 Bash/Read/Edit。③ 工具搜索开启时，不在 `CORE_TOOLS` 白名单（`src/constants/tools.ts:137`）的工具从 API 请求剔除，改经 SearchExtraTools + ExecuteExtraTool 按需调用。④ ant 原生构建内嵌 bfs/ugrep 时 Glob/Grep 不注入（开源构建不会发生） | — | — | — |
+| **做法** | 实测（2.1.325）：工具分两层下发——**eager**（完整 schema 进 `tools` 数组）+ **deferred**（仅名字在 system 消息公告，schema 客户端自持、经 ToolSearch 按需回填）。本次抓包未挂 MCP server（请求体无 `mcp_servers`），MCP 并入方式在此样本不可观察。源码参照（2.1.88 口径）：`getAllBaseTools()` 列全部可注册 → `getTools()` 过滤（deny 规则 → REPL 隐藏 → `isEnabled()`）→ `assembleToolPool()` 合并 MCP（内置优先去重、连续前缀保 prompt cache） | 待填 | 待填 | 待填 |
+| **值** | eager 13 + deferred 13 = 26。请求参数：模型 `ttsw-cc-main[1M]`（代理侧名）、`max_tokens=32000`、`thinking={type:"adaptive"}`、`output_config.effort="high"`、`context_management={"edits":[{type:"clear_thinking_20251015",keep:"all"}]}`、`anthropic-beta` 含 `advanced-tool-use-2025-11-20`（tool search）与 `context-management-2025-06-27`（原生 microcompact） | — | — | — |
+| **位置** | 抓包：`~/tmp/20261116/cc_body-2.1.325.json` + `cc_curl-2.1.325.sh`（POST `http://127.0.0.1:15721/v1/messages?beta=true`，tt-switch 本地代理转发）。参照（CCB）：`claude-code-best/src/tools.ts:218` `getAllBaseTools()` · `:304` `getTools()` · `:378` `assembleToolPool()` | — | — | — |
+| **注** | ① 官方 26 个里**没有** `Grep`/`Glob`/`TodoWrite`/`TaskCreate` 系——检索走 `Bash`（内置 ripgrep）或 `Explore` 子代理；CCB 清单 ≠ 官方清单。② 无 MCP 时无任何 `mcp__*` 工具。③ eager 层含 `DeferredToolPlaceholder`（空 schema 占位，"never call this tool"——为 deferred 通道保活）。④ 会话首条 user 消息即携带完整 AGENTS.md 上下文（`<system-reminder>` 包裹） | — | — | — |
 
-### 工具清单
+### 实测清单（官方 v2.1.325，🟦 运行实测）
+
+**eager——完整 schema 进 `tools` 数组（13 个）**：
+
+| 工具 | 作用（按抓包内 description 归纳） |
+|---|---|
+| `Agent` | 派子代理；`subagent_type:"fork"` 继承完整上下文并跑在同模型，其余起新 agent（默认 general-purpose）。参数含 `model`/`effort`/`isolation` |
+| `AskUserQuestion` | 阻塞式选择题；支持 `multiSelect` 与 "(Recommended)" 置顶约定 |
+| `Bash` | shell 执行；主会话内 `cd` 成功后可跨调用保持；`run_in_background`、`dangerouslyDisableSandbox` |
+| `Edit` | 精确字符串替换；必须先 Read；`replace_all` 全量替换 |
+| `ListAgents` | 列出可 SendMessage 的对象：本进程子代理、队友、本机其他 Claude 会话、云端会话、Remote Control 会话 |
+| `Read` | 读文件，默认 2000 行、cat -n 行号；支持图片、PDF（`pages`，>10 页必填、≤20 页/次）、Jupyter notebook；`allow_large` |
+| `ReportFindings` | code-review 结论的结构化上报（仅在评审指令要求时使用） |
+| `ScheduleWakeup` | `/loop` 动态模式自定时唤醒；回退间隔 ≥1200s，禁止短间隔轮询（harness 追踪的任务完成会自动唤醒） |
+| `Skill` | 调用技能包；指令加载进当前 turn |
+| `ToolSearch` | 拉取 deferred 工具完整 schema（`query` + `max_results`）；schema 一旦出现在结果里即可像 eager 工具一样直接调用 |
+| `Workflow` | 后台多代理编排脚本（立即返回 task ID）；必须用户显式 opt-in |
+| `Write` | 写/覆盖文件；覆盖未读过的既有文件会失败 |
+| `DeferredToolPlaceholder` | 空 schema 占位（**唯一带 `defer_loading:true`** 的工具），"Reserved placeholder that keeps deferred tool loading active; never call this tool" |
+
+**deferred——仅名字公告（13 个）**，system 消息原文："Their schemas are NOT loaded — calling them directly will fail with InputValidationError. Use ToolSearch with query `select:<name>[,<name>...]` to load tool schemas before calling them"：
+
+`CronCreate` `CronDelete` `CronList` `EnterPlanMode` `EnterWorktree` `ExitPlanMode` `ExitWorktree` `Monitor` `NotebookEdit` `SendMessage` `TaskStop` `WebFetch` `WebSearch`
+
+可用子代理（Agent 工具公告）：`claude`（FleetView 默认，Tools: *）、`claude-code-guide`（Bash/Read/WebFetch/WebSearch）、`Explore`（只读 fan-out 搜索）、`general-purpose`（Tools: *）、`Plan`（架构师）、`statusline-setup`（Read/Edit）。
+
+### 注册机制参照（CCB 复原源码口径 v2.1.888，🟦 源码锚点，非官方实测）
+
+管线：`getAllBaseTools()` 列全部可注册 → `getTools()` 过滤（deny 规则 → REPL 模式隐藏 → `isEnabled()`）→ `assembleToolPool()` 合并 MCP（内置优先去重、连续前缀保 cache）→ 每回合 `computeTools()` 从 store 现算。补充：① `ListMcpResources`/`ReadMcpResources` 被 `getTools` 的 specialTools 剔除、由 MCP 连接状态动态注入；② SIMPLE 模式（`CLAUDE_CODE_SIMPLE=1`）只剩 Bash/Read/Edit；③ 不在 `CORE_TOOLS` 白名单（`src/constants/tools.ts:137`）的工具经 SearchExtraTools + ExecuteExtraTool 按需调用（两步代理，官方无此设计）；④ ant 原生构建内嵌 bfs/ugrep 时 Glob/Grep 不注入（开源构建不会发生）。
 
 **A. 无条件注入**（`getAllBaseTools()` 直写；`isEnabled` 均默认 true）：
 
@@ -41,8 +71,6 @@
 | `TeamCreate` / `TeamDelete` | 创建/删除 agent 团队 |
 | `CronCreate` / `CronDelete` / `CronList` | 定时任务（cron）管理 |
 | `ExecuteExtraTool` | 调用经 SearchExtraTools 发现的延迟工具 |
-
-**B. 条件包含 — 默认构建/运行时通常为真**：
 
 | 工具 | 注入条件 | 作用 |
 |---|---|---|
@@ -73,43 +101,7 @@
 | `WebBrowser` / `OverflowTest` / `SubscribePR` | 对应 feature 未入默认构建列表 | 浏览器 / 压测 / PR 订阅 |
 | `Snip` / `CtxInspect` / `ReviewArtifact` | feature 已禁用（HISTORY_SNIP / CONTEXT_COLLAPSE / REVIEW_ARTIFACT） | — |
 
-
-1. builtInTools 返回的内建Tool列表
-const builtInTools = getTools(permissionContext)
-
-Agent
-TaskOutput
-Bash
-Glob
-Grep
-ExitPlanMode
-Read
-Edit
-Write
-NotebookEdit
-artifact
-WebFetch
-TodoWrite
-WebSearch
-TaskStop
-AskUserQuestion
-Skill
-EnterPlanMode
-LocalMemoryRecall
-VaultHttpFetch
-EnterWorktree
-ExitWorktree
-SendMessage
-TeamCreate
-TeamDelete
-CronCreate
-CronDelete
-CronList
-DiscoverSkills
-SearchExtraTools
-ExecuteExtraTool
-
-2. commands.ts 的 loadAllCommands
+**CCB 与官方 2.1.325 的清单差异**（易混淆点）：官方 eager+deferred 26 个里没有 CCB 的 `TaskOutput`/`TodoWrite`/`TaskCreate` 系/`artifact`/`LocalMemoryRecall`/`VaultHttpFetch`/`TeamCreate`/`DiscoverSkills`/`Goal`/`ExecuteExtraTool`；官方独有的有 `ListAgents`/`ReportFindings`/`ScheduleWakeup`/`DeferredToolPlaceholder`。差距来源：CCB 是 2.1.888 复原 + 社区扩展，官方在此期间重组了工具面（Task 系让位给 Agent + Explore 子代理、清单治理走 deferred 化）。
 
 ---
 
@@ -279,82 +271,126 @@ readFileState.set(fullFilePath, { content, timestamp: Math.floor(mtimeMs), offse
 
 ## 工具延迟加载（Tool Search）
 
-> 核对日期：2026-11-12（第二版，经官方 npm 包 sourcemap 还原源码逐行验证）。原版依据 claude-code-sourcemap `claude-code-sourcemap/README.md`（官方 `@anthropic-ai/claude-code` v2.1.88 的 `cli.js.map` sourcesContent 还原）；CCB 行为基于本机复原源码（v2.1.888）+ git 历史（`7be08f53` → `8c157f07`）；DeepSeek 兼容性依据 [DeepSeek 官方文档](https://api-docs.deepseek.com/guides/anthropic_api)。
+> 核对日期：2026-11-16（第四版，以官方 v2.1.325 实测抓包为主证据重写）。主证据：本机抓包 `~/tmp/20261116/cc_body-2.1.325.json`（🟦 运行实测）+ 官方二进制 `~/.local/share/claude/versions/2.1.325` 静态字符串考证（🟦）。历史版本（v2.1.88）依据 claude-code-sourcemap 还原源码；CCB 行为基于本机复原源码（v2.1.888）+ git 历史（`7be08f53` → `8c157f07`）。**2.1.88 的"自配端点拦在注册闸"结论只对该版本成立，2.1.325 已改为默认信任 + 运行时自愈，见下方版本对照。**
 
 | 字段 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
-| **做法** | 原版：`defer_loading` + `tool_reference`（API 服务端机制，命中工具**会**进 tools 数组）；CCB 替换为自研 SearchExtraTools + ExecuteExtraTool（纯客户端，schema **永不**进 tools 数组） | 四档 exposure（默认 `codemode` 不声明）+ `tool_search`（BM25）命中后 `setActiveTools` 把 schema 注入下一轮声明 | 全量注册、schema 无差别进 tools 数组，无延迟机制；规模靠 PTC（`run_code` + SDK 进 system prompt）换形态 | 待填 |
-| **值** | 原版：MCP 默认延迟、`alwaysLoad` 豁免、`shouldDefer` 显式标记；三模式 tst（未设即默认）/ tst-auto（阈值=上下文×10%）/ standard；CCB：CORE_TOOLS 白名单 ~29 个，搜索=关键词×0.4+TF-IDF×0.6 | exposure ∈ {direct, codemode(默认), deferred, hidden}，`toolExposure` 按名/通配符覆盖；BM25 name×3/namespace×0.5；`mcp_servers` 段预算 4096 字符；tool_search 默认 limit 8 | — | — |
-| **位置** | 原版：ToolSearchTool `claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts` · isDeferredTool 散特判 `claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/prompt.ts:62` · discovered 进 tools 数组 `claude-code-sourcemap/restored-src/src/services/api/claude.ts:1158` · tool_reference 产出 `claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts:461` · 关键词打分器 `claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts:186`<br>CCB：CORE_TOOLS `claude-code-best/src/constants/tools.ts:137` · 无条件排除 `claude-code-best/src/services/api/claude.ts:1188` · TF-IDF 索引 `claude-code-best/src/services/searchExtraTools/toolIndex.ts:80` · 发现门 `claude-code-best/packages/builtin-tools/src/tools/ExecuteTool/ExecuteTool.ts:88` | exposure `pi/packages/coding-agent/src/core/mcp-servers.ts:61` · tool_search `pi/packages/coding-agent/src/extensions/tool-search/tool.ts:300` | syncTools `deepseek-harness/packages/mcp/mcp-client/src/tools.ts:126` · PTC `deepseek-harness/packages/core/tool-executor-ptc/src/index.ts:45` | — |
-| **注** | 原版无 ExecuteExtraTool（tools/ 40 个目录，全仓库无 CallTool 代理）；CCB 里 defer_loading/tool_reference 是化石（`api.ts` deferLoading 选项、`betas.ts` beta header 零调用） | 命中后 schema 真进下一轮声明；激活记录进 transcript，resume/fork 保留 | PTC 下模型只见 `run_code`，其余以 SDK 文本进 system prompt——省往返与中间结果，不省 schema | — |
+| **做法** | 实测（2.1.325）：**客户端自持**——deferred 工具 schema 不进请求体，CLI 本地存；`ToolSearch` 结果把完整 JSONSchema 回填进上下文，模型下一轮直接原生调用。eager 层放 `DeferredToolPlaceholder`（唯一 `defer_loading:true`）保活通道。历史（2.1.88）：`defer_loading` + `tool_reference` 服务端机制，schema 一直在请求体里、由 API 剥离和展开。CCB：SearchExtraTools + ExecuteExtraTool 两步代理，schema **永不**进 tools 数组 | 四档 exposure（默认 `codemode` 不声明）+ `tool_search`（BM25）命中后 `setActiveTools` 把 schema 注入下一轮声明 | 全量注册、schema 无差别进 tools 数组，无延迟机制；规模靠 PTC（`run_code` + SDK 进 system prompt）换形态 | 待填 |
+| **值** | 实测：eager 13（含 ToolSearch + 占位符）+ deferred 13（仅名字公告）；`select:<name>[,<name>...]` 语法；请求体 `defer_loading` 计数=1（仅占位符）、`tool_reference` 计数=0；beta header `advanced-tool-use-2025-11-20`。历史 2.1.88：MCP 默认延迟、`alwaysLoad` 豁免；三模式 tst/tst-auto（阈值=上下文×10%）/standard。CCB：CORE_TOOLS 白名单 ~29 个，搜索=关键词×0.4+TF-IDF×0.6 | exposure ∈ {direct, codemode(默认), deferred, hidden}；BM25 name×3/namespace×0.5；`mcp_servers` 段预算 4096 字符；tool_search 默认 limit 8 | — | — |
+| **位置** | 实测：`~/tmp/20261116/cc_body-2.1.325.json` · 二进制 `~/.local/share/claude/versions/2.1.325`（模式决策 `Zde()`、force override `uBr()`、400 自愈 `VZ` 等 bundle 符号）。历史 2.1.88：ToolSearchTool `claude-code-sourcemap/restored-src/src/tools/ToolSearchTool/ToolSearchTool.ts` · 注册闸 `claude-code-sourcemap/restored-src/src/utils/toolSearch.ts:270` · discovered 进 tools 数组 `claude-code-sourcemap/restored-src/src/services/api/claude.ts:1158`<br>CCB：CORE_TOOLS `claude-code-best/src/constants/tools.ts:137` · 无条件排除 `claude-code-best/src/services/api/claude.ts:1188` · TF-IDF `claude-code-best/src/services/searchExtraTools/toolIndex.ts:80` | exposure `pi/packages/coding-agent/src/core/mcp-servers.ts:61` · tool_search `pi/packages/coding-agent/src/extensions/tool-search/tool.ts:300` | syncTools `deepseek-harness/packages/mcp/mcp-client/src/tools.ts:126` · PTC `deepseek-harness/packages/core/tool-executor-ptc/src/index.ts:45` | — |
+| **注** | 三代演化主线：**请求体藏 schema（2.1.88，依赖服务端）→ 客户端自持 schema（2.1.325，服务端零参与）→ 两步代理执行（CCB/DSH，跨 provider 兼容私有实现）**。原版（两个版本）都无 ExecuteExtraTool——发现后即直接调用 | 命中后 schema 真进下一轮声明；激活记录进 transcript，resume/fork 保留 | PTC 下模型只见 `run_code`，其余以 SDK 文本进 system prompt——省往返与中间结果，不省 schema | — |
 
-### 自配模型（DeepSeek 等）会开启延迟加载吗：不会，拦在注册闸
+### 实测报文结构（官方 v2.1.325，🟦 运行实测 2026-11-16）
 
-**结论：`ANTHROPIC_BASE_URL` 指向非 anthropic.com 端点且未显式设 `ENABLE_TOOL_SEARCH` 时，延迟加载整体关闭，MCP 工具全量内联、一切正常可用。** 模型名检查（黑名单只有 `['haiku']`）对自配模型**从不拦截**——拦它的是端点检查。
+抓包 `~/tmp/20261116/cc_body-2.1.325.json`（POST `http://127.0.0.1:15721/v1/messages?beta=true`，模型 `ttsw-cc-main[1M]`，未挂 MCP server）：
 
-调用链（官方 v2.1.88，三步）：
+```jsonc
+// tools 数组（节选）——13 个 eager，其中延迟通道相关 2 个：
+{ "name": "ToolSearch",
+  "description": "…Once a tool's schema appears in that result, it is callable exactly
+                  like any tool defined at the top of the tools array.",
+  "input_schema": { properties: { query, max_results }, required: [query, max_results] } }
+{ "name": "DeferredToolPlaceholder",
+  "defer_loading": true,                    // ← 全请求体唯一一处 defer_loading
+  "description": "Reserved placeholder that keeps deferred tool loading active; never call this tool.",
+  "input_schema": {} }
+
+// 被延迟的 13 个工具（WebFetch、NotebookEdit 等）schema 根本不在请求体里——
+// 只在 system 消息公告名字：
+// "The following deferred tools are now available via ToolSearch. Their schemas are NOT
+//  loaded — calling them directly will fail with InputValidationError. Use ToolSearch
+//  with query \"select:<name>[,<name>...]\" to load tool schemas before calling them"
+
+// headers：
+// anthropic-beta: …,advanced-tool-use-2025-11-20,…   ← tool search 的新 beta 名
+//   （2.1.88 时代的 tool-search-tool-2025-10-19 已换代）
+// 请求体 tool_reference 计数 = 0（尚未发生 ToolSearch 调用）
+```
+
+**发现循环（客户端自持，服务端零参与）**：模型调 `ToolSearch("select:WebFetch")` → CLI 本地匹配 → 完整 JSONSchema 作为 tool_result 文本回填（`<functions>` 块）→ 下一轮 CLI 把该工具以普通形态加进 tools 数组 → 模型直接发 `tool_use`。即使端点完全不认识 `defer_loading` 和 advanced-tool-use beta，链路照常工作。
+
+**对照 2.1.88 的四个版本差异**：
+
+1. **ToolSearch 从 ant 实验变成外部默认开启**。2.1.88 对未设 `ENABLE_TOOL_SEARCH` + 第三方端点直接关闭；2.1.325 走本地代理照常下发。
+2. **机制从服务端展开换成客户端回填**。2.1.88 的"API 服务端展开 tool_reference + 客户端 discovered 过滤回填"双通道在 2.1.325 无痕迹——schema 从"请求体里有、模型看不见"变成"客户端持有、按需下发"。
+3. **`DeferredToolPlaceholder` 新角色**：空 schema 占位保活，2.1.88 无此机制。
+4. **清单重组**：`Grep`/`Glob`/`TodoWrite`/`TaskCreate` 系在 eager+deferred 两层均不存在；检索归 `Bash`（内置 ripgrep）或 `Explore` 子代理。
+
+**与 CCB 的名字对应**（常见误读来源）：`ToolSearch` ≙ CCB `SearchExtraTools`（`select:` 语法两版相同）；**原版无 `ExecuteExtraTool`**——两步代理执行是 CCB（和 DSH `DeferExecuteTool`）为跨 provider 兼容做的私有实现。
+
+### 自配模型（DeepSeek 等）端点的行为：按版本两分
+
+**2.1.88——拦在注册闸（源码考证，🟦）**：`ANTHROPIC_BASE_URL` 指向非 anthropic.com 且未设 `ENABLE_TOOL_SEARCH` 时，延迟加载整体关闭，MCP 全量内联。调用链：
 
 ```
 ① tools.ts:249  getAllBaseTools()（会话启动，唯一决策点）
    └─ isToolSearchEnabledOptimistic()
         └─ toolSearch.ts:302  isFirstPartyAnthropicBaseUrl()
-             ANTHROPIC_BASE_URL host ∉ ['api.anthropic.com'] → false
              三个条件同时成立才拦：未设 ENABLE_TOOL_SEARCH ∧ firstParty ∧ 非官方 host
              ⇒ optimistic = false → ToolSearchTool 不注册
 ② isToolSearchEnabled (claude.ts:1120) 每请求终审
    └─ toolSearch.ts:428  isToolSearchToolAvailable(tools) → 找不到 ToolSearchTool
         ⇒ return false（日志理由 mcp_search_unavailable）
-③ useToolSearch = false → 无 defer_loading 字段、无 beta header、无名单公告
-   ⇒ 所有 MCP 工具 schema 全量进 tools 数组，模型直接调用
+③ useToolSearch = false → 无 defer_loading、无 beta header、无名单公告
+   ⇒ 所有 MCP 工具 schema 全量进 tools 数组
 ```
 
-要点拆解：
+拦它的是端点检查而非模型名检查（`modelSupportsToolReference` 负向黑名单只有 `['haiku']`，自配模型名恒放行）。拦的理由（注释，issue #30912）：第三方网关通常不转发 tool_reference，模型一搜工具下一轮就 400——"宁可没有延迟加载，不发会炸的请求"。强开 `ENABLE_TOOL_SEARCH=true` 则绕过 URL 闸，tool_reference 照发，第三方端点大概率 400 且**不会安静降级**。
 
-- **`isToolSearchEnabled` 内部没有任何 URL 检查**。URL 否决权在 `isToolSearchEnabledOptimistic`（L270）的 L298-310：`!ENABLE_TOOL_SEARCH ∧ firstParty ∧ !isFirstPartyAnthropicBaseUrl()` 三条同时成立才拦；`isFirstPartyAnthropicBaseUrl` 白名单只有 `api.anthropic.com`（ant 用户加 `api-staging`）。它拦的理由写在注释里（L286-296，issue #30912）：第三方网关通常不转发 tool_reference，模型一搜工具下一轮就 400——所以提前关门，"宁可没有延迟加载，不发会炸的请求"。
-- **模型名门（L419 `modelSupportsToolReference`）对自配模型恒放行**：负向黑名单只有 `['haiku']`（可被 GrowthBook `tengu_tool_search_unsupported_models` 在线扩充），`deepseek-chat` 等不命中 → true。设计意图（注释）："ensures new models work by default"——对官方新模型安全，对第三方端点的模型名则完全测不准。
-- **`isToolSearchEnabledOptimistic` 共 7 个调用点**，全部是注册闸的下游一致性维护：①tools.ts:249 注册（决策点）②ToolSearchTool 自身 isEnabled ③④normalizeMessagesForAPI 剥历史里的 tool_reference/caller（L2104/L2206）⑤deferred_tools_delta 附件 ⑥chrome 提示 ⑦盲调教学提示（L587）。主流程只需记 ①：它不注册，②-⑦ 全部跟随关闭，L428 必然拦。
-- **两个函数分工**：optimistic = 会话级粗筛（同步、便宜，管注册/清洗/提示），`isToolSearchEnabled` = 请求级终审（算模型/阈值，claude.ts:1120 请求 + compact.ts:1265 压缩 + analyzeContext 统计）。合法中间态：optimistic 放行但终审否决（tst-auto 低于阈值时每轮如此）。
-- **强开 `ENABLE_TOOL_SEARCH=true` 的后果**：绕过 URL 闸（注释明说显式配置 = 用户断言网关支持），四道检查全过 → defer_loading/tool_reference 照发 → DeepSeek 端点要么 422/400、要么丢弃字段退化 standard；模型一调 ToolSearchTool，下一轮历史带 tool_reference（DeepSeek content 类型表没有的类型）大概率 400。表现为"第一问正常、一搜工具就断"，**不会安静降级**。
-- **验证**：`--debug` 日志可见两条——启动时 `[ToolSearch:optimistic] disabled: ANTHROPIC_BASE_URL=... is not a first-party Anthropic host`（L307），每轮 `Tool search disabled: ToolSearchTool is not available`（L430）。
+**2.1.325——默认信任 + 运行时自愈（二进制考证，🟦 2026-11-16）**：URL 预检分支已删除，模式决策（bundle 内 `Zde()`）默认落进 `tst`（开启）：
 
-### 原版机制：一个心智模型 + 四件套
+```
+m3n()                       → "standard"   // 宿主策略强制关（host-managed policy）
+uBr()                       → "tst"        // force override（策略层 ENABLE_TOOL_SEARCH=force）
+ENABLE_TOOL_SEARCH=auto:N   → N≥100 → "standard"，否则 "tst-auto"
+ENABLE_TOOL_SEARCH 真值     → "tst"
+其他（未设）                → "tst"        ← 默认开启，不再看 BASE_URL
+```
 
-**一句话：`defer_loading: true` 的工具对模型默认不可见；唯一让它重新可见的方式，是消息历史里出现指向它的 `tool_reference` 块。**
+若端点拒绝 tool search beta（400/422），自动降级而非报错——bundle 内自愈函数（`VZ`）日志原文：
+
+> `[ToolSearch] HTTP 400 …; sending the request again without deferred tools. ENABLE_TOOL_SEARCH=false avoids the refused request`
+> `…tools listed earlier as deferred that are still available are declared in full: call them directly.`
+
+即：去掉 deferred 工具全量重发 → 本会话不再尝试 tool search → 给模型注入 `critical_system_reminder` 告知"直接调用即可"。另有两个会话级防抖：请求级 refusal 后 betas 记账（`toolSearchRefusal` + `tengu_beta_400_healed`）；会话跑过无 ToolSearch 的轮次后保持关闭直到 compact/clear（`held_off`），避免缓存前缀反复横跳。
+
+| 场景（自配 BASE_URL + MCP） | 2.1.88 | 2.1.325 |
+|---|---|---|
+| 未设 ENABLE_TOOL_SEARCH | 启动即关，MCP 全量内联 | **默认开启**，正常延迟加载 |
+| 端点支持 advanced-tool-use beta | （强开时）可用 | 延迟加载正常，schema 不进请求体 |
+| 端点拒绝 beta header | （强开时）400 后会话中断 | **自动降级**：去 deferred 全量重发，MCP 全量内联，会话继续 |
+| 显式 `ENABLE_TOOL_SEARCH=false` | 强制全量内联 | 强制全量内联（文档原文："ENABLE_TOOL_SEARCH=false avoids the refused request"） |
+
+⚠️ 待验证：DeepSeek 官方 Anthropic 兼容层对 `advanced-tool-use-2025-11-20` header 是忽略还是严格拒绝（决定走"无感"还是"触发降级重发"路径）；验证方法：挂 MCP server + `claude --debug`，看 `[ToolSearch]` 与 `[ToolSearch:optimistic]` 日志。
+
+### 历史机制存档：2.1.88 服务端展开（已换代，留作参照）
+
+**一句话：`defer_loading: true` 的工具 schema 一直在 HTTP 请求体里，但 API 服务端把它从模型上下文剥离；唯一让它重新可见的方式，是消息历史里出现指向它的 `tool_reference` 块。**
 
 ```
 可见 = 非 defer_loading 工具 ∪ { T | 消息历史中存在 tool_reference(T) }
 ```
 
-四件套：**藏**（defer_loading 标记，API 剥离出模型可见区）→ **知**（`<available-deferred-tools>` 名单，只有名字+描述）→ **取**（ToolSearchTool：发现入口 + 产出凭据 + 客户端记账数据源）→ **放**（API 服务端：tool_reference 触发展开 + 按 schema 强校验调用）。
+四件套：**藏**（defer_loading 标记，API 剥离出模型可见区）→ **知**（`<available-deferred-tools>` 名单，只有名字+描述）→ **取**（ToolSearchTool：发现入口 + 产出凭据）→ **放**（API 服务端：tool_reference 触发展开 + 按 schema 强校验调用）。
 
-关键辨析——schema 在三层的状态不同：**HTTP 请求体里有**（全程，展开的原料只能来自请求体，API 无状态不落盘）→ **API 服务端缓冲区有** → **模型上下文没有**（直到 tool_reference 展开）。官方缓存注释（claude.ts:1460）："the API strips them from the prompt, so they never affect the actual cache key"。第三方科普（[腾讯云文章](https://developer.cloud.tencent.com/article/2684265)）称"延迟工具只发名称不发 schema"是错的。
+schema 三层状态：**HTTP 请求体里有**（全程，展开的原料只能来自请求体，API 无状态不落盘）→ **API 服务端缓冲区有** → **模型上下文没有**（直到 tool_reference 展开）。官方缓存注释（claude.ts:1460）："the API strips them from the prompt, so they never affect the actual cache key"。第三方科普（[腾讯云文章](https://developer.cloud.tencent.com/article/2684265)）称"延迟工具只发名称不发 schema"是错的。
 
-#### 调用链路（简化版报文时序，一次 MCP 调用最少两轮）
+调用链路（一次 MCP 调用最少两轮）：
 
 ```
 【请求1】tools[] = [核心工具…, ToolSearchTool, mcp__slack__send_message{完整schema, defer_loading:true}]
          messages 末尾附 <available-deferred-tools> 名单
-【响应1】模型无 schema（只见名字+描述），凭常识发起 tool_use → ToolSearchTool({query:"select:mcp__slack__send_message"})
+【响应1】模型无 schema（只见名字+描述）→ ToolSearchTool({query:"select:mcp__slack__send_message"})
 【客户端】纯本地关键词搜索（不经 LLM）→ 回填 tool_result:
          content:[{type:"tool_reference", tool_name:"mcp__slack__send_message"}]  ← 只有名字
 【请求2】历史含 tool_reference → ① API 服务端展开 schema 进模型上下文（非客户端）
-                                    ② 客户端把该工具加回 tools[]（discovered 过滤分支）
+                                ② 客户端把该工具加回 tools[]（discovered 过滤分支 claude.ts:1158）
 【响应2】模型直接原生调用 → tool_use{ name:"mcp__slack__send_message", input:{channel,text} }
-【客户端】解析 mcp__ 前缀 → JSON-RPC tools/call{ name:"send_message" } 转发 MCP server → 结果回填 tool_result
 ```
 
-#### 双通道（源码实锤，最常见误读点）
+双通道（最常见误读点）：**通道 A（模型看见）** tool_reference 由 API 服务端展开；**通道 B（调用合法）** 客户端 `extractDiscoveredToolNames` 扫历史把工具加回下一轮 tools 数组。代价：发现过的工具进 tools 数组 → 缓存前缀从那一点失效；compact 边界携带 `preCompactDiscoveredTools`，压缩后不用重搜。
 
-命中后 schema 通过**两条独立通道**生效：
-
-- **通道 A（模型看见）**：tool_reference 由 **API 服务端**展开进上下文——客户端全程不碰被延迟工具的 schema；
-- **通道 B（调用合法）**：客户端 `extractDiscoveredToolNames` 扫历史里的 tool_reference（唯一来源），把工具**加回下一轮 tools 数组**（claude.ts:1158 `return discoveredToolNames.has(tool.name)`）——API 只接受对已声明工具的调用，光读到 schema 不够。
-
-双通道代价：发现过的工具进 tools 数组 → 缓存前缀从那一点失效（"不参与 KV Cache"只对未发现的成立）。compact 边界携带 `preCompactDiscoveredTools`，压缩后不用重搜。模型兼容守门：Haiku 不支持 tool_reference（负向名单 toolSearch.ts:227），整条机制降级全内联。
-
-#### ToolSearchTool 原理
-
-普通 zod 工具（`isDeferredTool` 特判永不延迟）+ 三步：① 候选集 = `tools.filter(isDeferredTool)`（进程内存）；② 打分（见下节算法表）；③ **构造凭据**——返回 tool_reference（全系统唯一产生点），下游三方消费：API 展开（让模型看见）、客户端记账（让调用合法）、compact 携带（跨压缩）。定位一句话：**defer_loading 管"藏"（换出），ToolSearchTool 管"取"（缺页处理器），API 管"放"（展开+强校验）**——只有换出没有缺页处理，被换出的页永久不可访问。官方建议 >10K tokens 或 >10 工具启用；实测 58 工具 ~55K tokens 省 85%，Opus 4 准确率 49%→74%。
+ToolSearchTool 原理：普通 zod 工具（`isDeferredTool` 特判永不延迟）+ 三步：候选集 = `tools.filter(isDeferredTool)`（进程内存）→ 打分（见下表）→ 构造 tool_reference（全系统唯一产生点）。定位：**defer_loading 管"藏"，ToolSearchTool 管"取"（缺页处理器），API 管"放"（展开+强校验）**。官方建议 >10K tokens 或 >10 工具启用；实测 58 工具 ~55K tokens 省 85%，Opus 4 准确率 49%→74%。
 
 ### 算法：三代实现，原版不是 TF-IDF
 
@@ -364,22 +400,22 @@ readFileState.set(fullFilePath, { content, timestamp: Math.floor(mtimeMs), offse
 | CCB | 关键词×0.4 + **TF-IDF 余弦**×0.6 | 三路加权 TF（name 3.0/hint 2.5/desc 1.0）×IDF，进程内存索引；新增 `discover:`（返回 schema 纯文本）、中文 bigram 门槛 |
 | pi | **Okapi BM25**（k1=1.2/b=0.75） | 词频饱和+长度归一；name×3 IDF 压倒描述任意次提及、namespace×0.5、精确名置顶；中文走 Intl.Segmenter |
 
-演进：权重表 → 统计检索 → 带归一化的统计检索。三代全停在经典 IR 无人用 embedding——查询是 LLM 写的，语义桥接在查询端完成（"给团队发消息"会被模型写成 "slack send message"），检索端只处理词面。推论：原版排序对**命名极敏感**（名字命中一次压倒描述五次），searchHint 与 MCP 命名规范因此重要。词法天花板："美国总统"vs"特朗普"零交集恒 0 分；BM25 270+ 工具时 top-1 掉到 14%（top-5 87%），大规模需混合 embedding。
+演进：权重表 → 统计检索 → 带归一化的统计检索。三代全停在经典 IR 无人用 embedding——查询是 LLM 写的，语义桥接在查询端完成（"给团队发消息"会被模型写成 "slack send message"），检索端只处理词面。推论：原版排序对**命名极敏感**（名字命中一次压倒描述五次），searchHint 与 MCP 命名规范因此重要。词法天花板："美国总统"vs"特朗普"零交集恒 0 分；BM25 270+ 工具时 top-1 掉到 14%（top-5 87%），大规模需混合 embedding。⚠️ 2.1.325 的检索算法未考证（bundle 未解包该段），不排除沿用权重表。
 
 ### CCB 演化与现行机制
 
-演化：fork 初期继承原版 → F001（`7be08f53`）双轨（`modelSupportsToolReference()` 分流）→ `8c157f07`（2026-05-09）统一自研：删分流/defer_loading/beta header/tool_reference，输出改纯文本 → `c14b7ead` **删掉原版 filter 里的 discovered 分支改无条件排除**（与原版的分水岭）。动因（spec 三条局限）：① tool_reference 仅 Anthropic 支持（DeepSeek 端点 `anthropic-beta: Ignored`）；② 命中后动态注入破坏 prompt cache；③ 跨 7 provider 统一。
+演化：fork 初期继承原版 → F001（`7be08f53`）双轨（`modelSupportsToolReference()` 分流）→ `8c157f07`（2026-05-09）统一自研：删分流/defer_loading/beta header/tool_reference，输出改纯文本 → `c14b7ead` **删掉原版 filter 里的 discovered 分支改无条件排除**（与原版的分水岭）。动因（spec 三条局限）：① tool_reference 仅 Anthropic 支持（DeepSeek 端点 `anthropic-beta: Ignored`）；② 命中后动态注入破坏 prompt cache；③ 跨 7 provider 统一。**评价修正（2026-11-16）：官方 2.1.325 之后的走向证明 CCB 当年三条动因里"仅 Anthropic 支持"一条已被官方用客户端自持方案自行解决，但"cache 恒定"一条官方并未采纳——发现后工具仍进 tools 数组，前缀照旧失效。**
 
-| 维度 | 原版 | CCB |
-|---|---|---|
-| 延迟判定 | `shouldDefer`/`isMcp`/`alwaysLoad` 散特判（无 CORE_TOOLS） | CORE_TOOLS 白名单制 |
-| 凭据形态 | `tool_reference` 协议块 | 一行名字文本（自家正则解析） |
-| schema 进 tools 数组 | **是**（discovered 进入） | **永不**（无条件排除，数组恒定） |
-| 执行 | 模型直接调用（API 强校验） | ExecuteExtraTool 代理（发现门+zod 预校验+防死循环；`buildSchemaNotSentHint` 教学，埋点 `tengu_deferred_tool_schema_not_sent`） |
-| 依赖 | beta header，仅 Anthropic | 无，7 provider 通用 |
-| cache | 未发现稳定，发现后失效 | 恒定不失效 |
+| 维度 | 原版 2.1.88 | 原版 2.1.325 实测 | CCB |
+|---|---|---|---|
+| 延迟判定 | `shouldDefer`/`isMcp`/`alwaysLoad` 散特判 | eager/deferred 两层，占位符保活 | CORE_TOOLS 白名单制 |
+| 凭据形态 | `tool_reference` 协议块 | tool_result 里的 `<functions>` schema 文本 | 一行名字文本（自家正则解析） |
+| 被延迟工具 schema 在请求体 | **是**（defer_loading 完整形态，API 剥离） | **否**（客户端自持） | **永不**（无条件排除，数组恒定） |
+| 执行 | 模型直接调用（API 强校验） | 模型直接调用（schema 回填后原生 tool_use） | ExecuteExtraTool 代理（发现门+zod 预校验+防死循环；埋点 `tengu_deferred_tool_schema_not_sent`） |
+| 依赖 | beta header + 服务端展开，仅 Anthropic | 几乎无（未知字段被忽略即可；beta 被拒则降级） | 无，7 provider 通用 |
+| cache | 未发现稳定，发现后失效 | 未发现稳定，发现后失效 | 恒定不失效 |
 
-公告机制两版相同：`<available-deferred-tools>` 报名字（ant 用户走 `deferred_tools_delta` 持久附件），diff 后仅新增时注入。CCB `extractDiscoveredToolNames` 的 docstring"用于加入后续 API 请求"是过时注释，现仅用于发现门与 compact 边界。
+公告机制：2.1.88 用 `<available-deferred-tools>` 报名字；2.1.325 实测为 system 消息列名单（"Their schemas are NOT loaded…"）。CCB `extractDiscoveredToolNames` 的 docstring"用于加入后续 API 请求"是过时注释，现仅用于发现门与 compact 边界。
 
 ### 社区方案四流派（+硬上限）
 

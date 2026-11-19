@@ -6,6 +6,27 @@
 
 ---
 
+## 压缩流水线分级（四级）
+
+> 核对日期：2026-11-16。原版依据：v2.1.88 还原源码（🟦）+ v2.1.325 抓包与本机二进制考证（🟦实测）；CCB 复原源码辅助（🟦）。宣传图（"Snip→Microcompact→Context Collapse→Autocompact"）描述的是 **ant 内部构建**；外部 npm/安装包构建经死代码剔除后只保留第 4 级（+reactive 兜底），见各级"外部可用性"。
+
+每轮 API 请求前在 `query.ts` 主管道按固定顺序执行四级（v2.1.88 [query.ts:396-468](../../claude-code-sourcemap/restored-src/src/query.ts)）：**Snip → Microcompact → Context Collapse → Autocompact**。注释写明排序理由：collapse 排在 autocompact 之前，若折叠把 token 压到阈值下，autocompact 空转，保住细粒度上下文。
+
+| 级 | 触发条件 | 执行机制 | 调 LLM？ | 外部构建（2.1.325 实测） |
+|---|---|---|---|---|
+| **1 Snip 剪裁** | 模型自主调用 Snip 工具（API 消息注入 `[id:xxxxxx]` 短标签供引用；每增长约 10k token 且无 snip 时注入 `context_efficiency` 轻推）；或 `/force-snip` 手动 | 每轮 `snipCompactIfNeeded()` 按边界消息的 `snipMetadata.removedUuids` **本地过滤**消息，UI 保留全量 | 否 | ❌ 不在构建里。2.1.325 二进制中 `HISTORY_SNIP`/`SnipTool`/`snipCompact` 等标识计数全为 0——ant-only（`excluded-strings.txt` + Bun DCE），非"默认关" |
+| **2 Microcompact 微压缩** | ① 时间触发：距上条主线程 assistant 消息 >60min（GrowthBook `tengu_slate_heron`，**默认 `enabled:false`**）；② 缓存编辑触发（ant-only `CACHED_MICROCOMPACT`）：可压缩工具结果活跃数超阈值 10、保留最近 5 | ① 旧 tool_result 内容本地替换为 `[Old tool result content cleared]`；② API 请求附 `cache_edits` 块由服务端删除，本地消息不动 | 否 | ❌ ① 默认关，② ant-only。外部仅有 API 原生 `clear_thinking_20251015`（keep all）——2.1.325 抓包 `context_management` 字段实证 |
+| **3 Context Collapse 折叠** | 以 effectiveWindow 为分母：**约 90% 提交折叠、约 95% 阻塞并派生**（v2.1.88 autoCompact.ts 注释明文）；真实 413 时先 `recoverFromOverflow` 排空暂存 | 读时投影：原始消息数组与 transcript 不动，替换指令（span 首尾 uuid + `<collapsed>摘要</collapsed>` 占位文本）存独立 store 并持久化（`marble-origami-commit` entry），`projectView()` 每轮重放 commit log 把 span 内 N 条消息顶替成 1 条占位。**摘要生成需 LLM**（fork ctx-agent `marble_origami` 写摘要入 staged 队列），**替换执行不需要**（~90% 时本地 splice 提交）。span 不按轮数，按 token 增长 + `risk` 评分动态选连续区段。启用期间抑制 autocompact（`shouldAutoCompact` 直接 false） | **是**（摘要生成；替换无） | ❌ 不在构建里。二进制无 `CONTEXT_COLLAPSE`/collapse 符号；CCB 中该 feature 在禁用列表、模块为 stub |
+| **4 Autocompact 全量摘要** | `tokenCountWithEstimation(messages) − snipTokensFreed ≥ effectiveWindow − 13,000`；前置否决：`DISABLE_COMPACT`/`DISABLE_AUTO_COMPACT`/用户配置、fork 源递归守卫、collapse 激活、熔断器（连续失败 3 次停试） | 先试 session memory 压缩（不调 LLM，复用已抽取记忆）；失败则 fork compact agent（`maxTurns:1`，复用主线程 prompt cache）生成 9 节结构化摘要 | **是** | ✅ 唯一默认完整保留的一级；外加 reactive compact 兜底（真实 413 后触发，同级摘要） |
+
+**外部用户的实际视图（2.1.325）**：主动压缩只有 Autocompact；413 兜底走 reactive compact；"微压缩"只剩 API 原生 thinking 清理。宣传图的四级是 ant 内部形态。
+
+关键代码锚点：主管道顺序 [query.ts:396-468](../../claude-code-sourcemap/restored-src/src/query.ts) · snip 过滤 CCB [snipCompact.ts:83-147](../../claude-code-best/src/services/compact/snipCompact.ts) · microcompact 双路径 [microCompact.ts:253-293](../../claude-code-sourcemap/restored-src/src/services/compact/microCompact.ts) · collapse 抑制 autocompact [autoCompact.ts:201-223](../../claude-code-sourcemap/restored-src/src/services/compact/autoCompact.ts) · autocompact 阈值与 fork [autoCompact.ts:160-239](../../claude-code-sourcemap/restored-src/src/services/compact/autoCompact.ts) + [compact.ts:1188-1215](../../claude-code-sourcemap/restored-src/src/services/compact/compact.ts) · 摘要 prompt [prompt.ts:61-143](../../claude-code-sourcemap/restored-src/src/services/compact/prompt.ts)。
+
+⚠️ 待验证：v2.1.325 中 collapse/snip 的 DCE 结论基于二进制字符串计数（0 命中），未反编译控制流；"87% 触发"非代码常量，200K 窗口按公式为 83.5%。
+
+---
+
 ## 自动压缩阈值
 
 | 字段 | ClaudeCode | PI | DSH | Codex |
