@@ -138,7 +138,7 @@
 
 | 机制 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
-| **多 Agent 范式** | 有·开 · 三形态：子代理（同步/异步/fork）+ 协调器（ant-only，DCE 剔除）+ Swarm 团队（外部可开 `--agent-teams`，lead=对话会话，常驻队友+信箱） · [🟦](<details/07-orchestration.md#多-agent-范式形态与启用>) | 无 · 无内建多 Agent 工具面，session fork 留给编排层 · [🟦](<details/07-orchestration.md#多-agent-范式形态与启用>) | 有·开 · `agent` 工具（立即返回+完成通知+可继续对话）+ team 包任务板（teammates are subagents） · [🟦](<details/07-orchestration.md#多-agent-范式形态与启用>) | 有·开 · `multi_agent_v1` namespace 九工具（spawn/send/wait/close…）+ v2 演进 · [🟦](<details/07-orchestration.md#多-agent-范式形态与启用>) |
+| **多 Agent 范式** | 有·开 · 三形态全支持：子代理（fork 可继承上下文）+ 协调器（ant-only）+ Swarm 团队（外部可开） · [🟦](<details/07-orchestration.md#多-agent-范式>) | 无 · session fork 留给编排层 · [🟦](<details/07-orchestration.md#多-agent-范式>) | 半 · 子代理完整（agent 工具+通知+可继续），团队只有任务板无常驻队友 · [🟦](<details/07-orchestration.md#多-agent-范式>) | 有·开 · 子代理（spawn_agent），无协调器/团队形态 · [🟦](<details/07-orchestration.md#多-agent-范式>) |
 | **子 Agent 隔离** | 待填 | 待填 | 待填 | 待填 |
 | **协调器纯编排** | 待填 | 待填 | 待填 | 待填 |
 | **Worktree 隔离** | 有·开 · Agent 参数 `isolation:"worktree"`，slug 校验防穿越，无变更自动清理 · [🟦](<details/07-orchestration.md#worktree-隔离>) | 待填 | 待填 | 待填 |
