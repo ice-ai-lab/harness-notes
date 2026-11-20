@@ -138,14 +138,10 @@
 
 | 机制 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
-| **多 Agent 范式** | 有·开 · 三形态全支持：子代理（fork 可继承上下文）+ 协调器（ant-only）+ Swarm 团队（外部可开） · [🟦](<details/07-orchestration.md#多-agent-范式>) | 无 · session fork 留给编排层 · [🟦](<details/07-orchestration.md#多-agent-范式>) | 半 · 子代理完整（agent 工具+通知+可继续），团队只有任务板无常驻队友 · [🟦](<details/07-orchestration.md#多-agent-范式>) | 有·开 · 子代理（spawn_agent），无协调器/团队形态 · [🟦](<details/07-orchestration.md#多-agent-范式>) |
-| **子 Agent 隔离** | 待填 | 待填 | 待填 | 待填 |
-| **协调器纯编排** | 待填 | 待填 | 待填 | 待填 |
+| **多 Agent 范式** | 有·开 · 三形态全支持：子代理 + 协调器（ant-only）+ Swarm 团队（外部可开），三范式的提示词/工具差异见详情 · [🟦](<details/07-orchestration.md#三种多-agent-范式cc>) | 无 · session fork 留给编排层 · [🟦](<details/07-orchestration.md#各家支持情况>) | 半 · 子代理完整（agent 工具+通知+可继续），团队只有任务板无常驻队友 · [🟦](<details/07-orchestration.md#各家支持情况>) | 有·开 · 子代理（spawn_agent），无协调器/团队形态 · [🟦](<details/07-orchestration.md#各家支持情况>) |
 | **Worktree 隔离** | 有·开 · Agent 参数 `isolation:"worktree"`，slug 校验防穿越，无变更自动清理 · [🟦](<details/07-orchestration.md#worktree-隔离>) | 待填 | 待填 | 待填 |
-| **脚本编排上限** | 待填 | 待填 | 待填 | 待填 |
-| **Agent 间通信** | 有·开 · `<task-notification>` XML 投递（去重）+ 队友 SendMessage 点对点信箱；结果回传可过安全分类器 · [🟦](<details/07-orchestration.md#agent-间通信>) | 待填 | 有·开 · `send_message` 运行中转向/结束后继续 + 完成通知自动投递 · [🟦](<details/07-orchestration.md#agent-间通信>) | 有·开 · send_input/send_message/followup_task/wait_agent 多动词族 · [🟦](<details/07-orchestration.md#agent-间通信>) |
-| **跨会话权威** | 待填 | 待填 | 待填 | 待填 |
-| **任务存储与认领** | 待填 | 待填 | 待填 | 待填 |
+| **Agent 间通信** | 有·开 · 同步 tool_result / 异步 task-notification / 队友 SendMessage 信箱 · [🟦](<details/07-orchestration.md#agent-间通信>) | 待填 | 有·开 · `send_message` 运行中转向/结束后继续 · [🟦](<details/07-orchestration.md#agent-间通信>) | 有·开 · send_input/send_message/followup_task/wait_agent 多动词族 · [🟦](<details/07-orchestration.md#agent-间通信>) |
+| **子 Agent 隔离 / 协调器纯编排 / 脚本编排上限 / 跨会话权威 / 任务存储与认领** | 待填 | 待填 | 待填 | 待填 |
 
 ---
 
