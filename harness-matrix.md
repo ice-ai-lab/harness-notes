@@ -20,7 +20,7 @@
 | 03 工具与编辑 | [02-tools](details/02-tools.md) | 工具怎么注册、跑、和截断 | 🟡 5/10 已填 |
 | 04 安全权限 | `details/04-safety.md` | 危险动作在哪一层被拦 | ⬜ 待建 |
 | 05 记忆 | `details/05-memory.md` | 跨会话事实怎么存、召回、保鲜 | ⬜ 待建 |
-| 06 技能与扩展 | `details/06-skills.md` | 能力怎么按需装载、怎么拦钩子 | ⬜ 待建 |
+| 06 技能与扩展 | `details/06-skills.md` | 能力怎么按需装载、怎么拦钩子 | 🟡 4/9 已填（frontmatter 机制 4 家已核） |
 | 07 多 Agent 与编排 | `details/07-orchestration.md` | 谁当协调器、怎么隔离、怎么防洗白 | ⬜ 待建 |
 | 08 自治与常驻 | `details/08-autonomy.md` | 没人盯着时谁决定继续、在哪跑 | ⬜ 待建 |
 | 09 交互与观测 | `details/09-observability.md` | 用户看到什么、事后能查出什么 | ⬜ 待建 |
@@ -123,8 +123,10 @@
 | 机制 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
 | **技能来源合并** | 待填 | 待填 | 待填 | 待填 |
-| **渐进式披露** | 待填 | 待填 | 待填 | 待填 |
-| **Inline/Fork 双模** | 待填 | 待填 | 待填 | 待填 |
+| **渐进式披露** | 有·开 · system-reminder 注入摘要清单 + Skill 工具按名取正文，两步同构 · [🟦](<details/06-skills.md#渐进式披露>) | 有·开 · 持久目录消息 + skill 工具按名取正文，两步同构 · [🟦](<details/06-skills.md#渐进式披露>) | 待填 | 待填 |
+| **压缩后技能持久性** | 有·开 · invoked_skills 注册表 + 压缩边界自动回注（头部 5K/技能、总 25K、丢最久未用），resume 重建 · [🟦](<details/06-skills.md#压缩后技能持久性长会话>) | 无 · 压缩无技能保留，正文靠模型重读文件自然恢复 · [🟦](<details/06-skills.md#压缩后技能持久性长会话>) | 半 · 正文随压缩失效，目录消息压缩后下一轮自动重建（再触发有保证，正文靠重载） · [🟦](<details/06-skills.md#压缩后技能持久性长会话>) | 无 · compact/skills 无技能回注逻辑（⚠️ 待验证） · [🟦](<details/06-skills.md#压缩后技能持久性长会话>) |
+| **Inline/Fork 双模** | 有·开 · frontmatter context 声明，fork 走子 Agent 独立 query() · [🟦](<details/06-skills.md#inlinefork-双模>) | 待填 | 无 · 无 context 字段，加载即注入，fork 由编排侧决定 · [🟦](<details/06-skills.md#inlinefork-双模>) | 待填 |
+| **Frontmatter 字段** | 15/15 · 执行语义+路由+调用面三组全支持 · [🟦](<details/06-skills.md#frontmatter-字段支持cc-15-字段清单对照>) | 5/15 · 仅身份+调用面，whenToUse 拼写不同 · [🟦](<details/06-skills.md#frontmatter-字段支持cc-15-字段清单对照>) | ≈8/15 · 仅身份+调用面+argument-hint/allowed-tools(实验) · [🟦](<details/06-skills.md#frontmatter-字段支持cc-15-字段清单对照>) | 3/15 · 仅 name/description/metadata.short-description · [🟦](<details/06-skills.md#frontmatter-字段支持cc-15-字段清单对照>) |
 | **技能权限白名单** | 待填 | 待填 | 待填 | 待填 |
 | **Hook 事件路由** | 待填 | 待填 | 待填 | 待填 |
 | **Hook 执行管道** | 待填 | 待填 | 待填 | 待填 |
