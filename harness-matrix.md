@@ -21,7 +21,7 @@
 | 04 安全权限 | `details/04-safety.md` | 危险动作在哪一层被拦 | ⬜ 待建 |
 | 05 记忆 | `details/05-memory.md` | 跨会话事实怎么存、召回、保鲜 | ⬜ 待建 |
 | 06 技能与扩展 | `details/06-skills.md` | 能力怎么按需装载、怎么拦钩子 | 🟡 4/9 已填（frontmatter 机制 4 家已核） |
-| 07 多 Agent 与编排 | `details/07-orchestration.md` | 谁当协调器、怎么隔离、怎么防洗白 | ⬜ 待建 |
+| 07 多 Agent 与编排 | [07-orchestration](details/07-orchestration.md) | 谁当协调器、怎么隔离、怎么防洗白 | 🟡 4/7 已填（多 Agent 范式 4 家已核，通信 CC/DSH） |
 | 08 自治与常驻 | `details/08-autonomy.md` | 没人盯着时谁决定继续、在哪跑 | ⬜ 待建 |
 | 09 交互与观测 | `details/09-observability.md` | 用户看到什么、事后能查出什么 | ⬜ 待建 |
 
@@ -138,11 +138,12 @@
 
 | 机制 | ClaudeCode | PI | DSH | Codex |
 |---|---|---|---|---|
+| **多 Agent 范式** | 有·开 · 三形态：子代理（同步/异步/fork）+ 协调器（ant-only，DCE 剔除）+ Swarm 团队（外部可开 `--agent-teams`，lead=对话会话，常驻队友+信箱） · [🟦](<details/07-orchestration.md#多-agent-范式形态与启用>) | 无 · 无内建多 Agent 工具面，session fork 留给编排层 · [🟦](<details/07-orchestration.md#多-agent-范式形态与启用>) | 有·开 · `agent` 工具（立即返回+完成通知+可继续对话）+ team 包任务板（teammates are subagents） · [🟦](<details/07-orchestration.md#多-agent-范式形态与启用>) | 有·开 · `multi_agent_v1` namespace 九工具（spawn/send/wait/close…）+ v2 演进 · [🟦](<details/07-orchestration.md#多-agent-范式形态与启用>) |
 | **子 Agent 隔离** | 待填 | 待填 | 待填 | 待填 |
 | **协调器纯编排** | 待填 | 待填 | 待填 | 待填 |
-| **Worktree 隔离** | 待填 | 待填 | 待填 | 待填 |
+| **Worktree 隔离** | 有·开 · Agent 参数 `isolation:"worktree"`，slug 校验防穿越，无变更自动清理 · [🟦](<details/07-orchestration.md#worktree-隔离>) | 待填 | 待填 | 待填 |
 | **脚本编排上限** | 待填 | 待填 | 待填 | 待填 |
-| **Agent 间通信** | 待填 | 待填 | 待填 | 待填 |
+| **Agent 间通信** | 有·开 · `<task-notification>` XML 投递（去重）+ 队友 SendMessage 点对点信箱；结果回传可过安全分类器 · [🟦](<details/07-orchestration.md#agent-间通信>) | 待填 | 有·开 · `send_message` 运行中转向/结束后继续 + 完成通知自动投递 · [🟦](<details/07-orchestration.md#agent-间通信>) | 有·开 · send_input/send_message/followup_task/wait_agent 多动词族 · [🟦](<details/07-orchestration.md#agent-间通信>) |
 | **跨会话权威** | 待填 | 待填 | 待填 | 待填 |
 | **任务存储与认领** | 待填 | 待填 | 待填 | 待填 |
 
